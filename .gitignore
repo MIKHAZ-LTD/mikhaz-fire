@@ -1,0 +1,38 @@
+# Go binaries and build artifacts
+build/bin/
+mikhaz-fire.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Nuxt and Node build directories
+frontend/dist/
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.output/
+frontend/package-lock.json
+
+# IDE / Editor configuration files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Local credentials/secrets (prevent accidental commits)
+*service-account*.json
+*credentials*.json
+*secret*.json
+*.json.key
+.env
+.env.*
