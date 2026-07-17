@@ -340,7 +340,7 @@ func (q *JSQueryRef) execute() (*JSQuerySnapshot, error) {
 		structuredQuery["where"] = filter
 	}
 	if len(q.sorts) > 0 {
-		structuredQuery["order"] = q.sorts
+		structuredQuery["orderBy"] = q.sorts
 	}
 	if q.limit > 0 {
 		structuredQuery["limit"] = q.limit

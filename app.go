@@ -196,11 +196,12 @@ func (a *App) CopyNode(srcEmail string, srcProjectId string, srcDatabaseId strin
 	}
 
 	var copiedCount int
-	if nodeType == "collection" {
+	switch nodeType {
+	case "collection":
 		copiedCount, err = CopyCollection(srcToken, srcProjectId, srcDatabaseId, destToken, destProjectId, destDatabaseId, path, overwrite, recursive)
-	} else if nodeType == "document" {
+	case "document":
 		copiedCount, err = CopyDocument(srcToken, srcProjectId, srcDatabaseId, destToken, destProjectId, destDatabaseId, path, overwrite, recursive)
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid type: must be 'collection' or 'document'")
 	}
 

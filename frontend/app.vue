@@ -219,7 +219,7 @@
             </div>
 
             <!-- Search and Control Bar -->
-            <div class="flex gap-4">
+            <div class="flex gap-4 items-center">
               <UInput
                 v-model="tab.searchQuery"
                 placeholder="Search by UID, email, display name..."
@@ -230,6 +230,13 @@
               <UButton color="neutral" size="sm" @click="fetchAuthUsers(tab)">
                 Search
               </UButton>
+              <div class="h-6 w-[1px] bg-[#2a2d31]" />
+              <UInput
+                v-model="tab.authFilterEmail"
+                placeholder="Filter by email..."
+                class="w-64"
+                icon="i-heroicons-funnel"
+              />
             </div>
 
             <!-- Users Table -->
@@ -237,13 +244,43 @@
               <div class="flex-1 overflow-auto">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr class="bg-[#1d1f22] text-[#e3e6e8] border-b border-[#2a2d31] font-semibold">
-                      <th class="p-3">UID</th>
-                      <th class="p-3">Email</th>
-                      <th class="p-3">Display Name</th>
-                      <th class="p-3">Disabled</th>
-                      <th class="p-3">Created</th>
-                      <th class="p-3">Last Login</th>
+                    <tr class="bg-[#1d1f22] text-[#e3e6e8] border-b border-[#2a2d31] font-semibold select-none">
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'uid')">
+                        UID
+                        <span v-if="tab.authSortField === 'uid'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'email')">
+                        Email
+                        <span v-if="tab.authSortField === 'email'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'displayName')">
+                        Display Name
+                        <span v-if="tab.authSortField === 'displayName'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'disabled')">
+                        Disabled
+                        <span v-if="tab.authSortField === 'disabled'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'createdAt')">
+                        Created
+                        <span v-if="tab.authSortField === 'createdAt'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'lastLoginAt')">
+                        Last Login
+                        <span v-if="tab.authSortField === 'lastLoginAt'" class="ml-1 text-[10px] text-amber-500">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
                       <th class="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -254,7 +291,10 @@
                     <tr v-else-if="!tab.users || tab.users.length === 0" class="text-center">
                       <td colspan="7" class="p-8 text-[#606870]">No users found.</td>
                     </tr>
-                    <tr v-else v-for="user in tab.users" :key="user.uid" class="border-b border-[#2a2d31] hover:bg-[#1d1f22] transition-colors">
+                    <tr v-else-if="getFilteredSortedUsers(tab).length === 0" class="text-center">
+                      <td colspan="7" class="p-8 text-[#606870]">No users match the email filter.</td>
+                    </tr>
+                    <tr v-else v-for="user in getFilteredSortedUsers(tab)" :key="user.uid" class="border-b border-[#2a2d31] hover:bg-[#1d1f22] transition-colors">
                       <td class="p-3 font-mono text-[11px] text-amber-500 truncate max-w-[150px]" :title="user.uid">{{ user.uid }}</td>
                       <td class="p-3 truncate max-w-[150px]" :title="user.email">{{ user.email || 'Anonymous' }}</td>
                       <td class="p-3 truncate max-w-[150px]" :title="user.displayName">{{ user.displayName || '-' }}</td>
@@ -374,7 +414,10 @@
                         </div>
                         <div class="flex flex-col gap-1">
                           <label class="font-semibold text-[#9da5ac]">Filter Field</label>
-                          <UInput v-model="tab.queryFilterField" placeholder="e.g. role" class="w-full bg-[#0c0d0e]" />
+                          <UInput v-model="tab.queryFilterField" placeholder="e.g. role" class="w-full bg-[#0c0d0e]" :list="'filter-fields-list-' + tab.id" />
+                          <datalist :id="'filter-fields-list-' + tab.id">
+                            <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
+                          </datalist>
                         </div>
                         <div class="flex flex-col gap-1">
                           <label class="font-semibold text-[#9da5ac]">Op</label>
@@ -390,7 +433,10 @@
                         </div>
                         <div class="flex flex-col gap-1">
                           <label class="font-semibold text-[#9da5ac]">Sort Field</label>
-                          <UInput v-model="tab.querySortField" placeholder="e.g. created_at" class="w-full bg-[#0c0d0e]" />
+                          <UInput v-model="tab.querySortField" placeholder="e.g. created_at" class="w-full bg-[#0c0d0e]" :list="'sort-fields-list-' + tab.id" />
+                          <datalist :id="'sort-fields-list-' + tab.id">
+                            <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
+                          </datalist>
                         </div>
                         <div class="flex flex-col gap-1">
                           <label class="font-semibold text-[#9da5ac]">Sort Direction</label>
@@ -975,6 +1021,47 @@
       </template>
     </UModal>
 
+    <!-- Modal: Notification / Error Details -->
+    <UModal v-model:open="showNotificationModal" size="md">
+      <template #content>
+        <UCard :ui="{ background: 'bg-[#121315]', border: notificationModalType === 'error' ? 'border-[#ea4335]/20' : 'border-[#34a853]/20' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3 
+                class="text-base font-semibold leading-6 flex items-center gap-2"
+                :class="notificationModalType === 'error' ? 'text-[#ea4335]' : 'text-[#34a853]'"
+              >
+                <span 
+                  :class="notificationModalType === 'error' ? 'i-heroicons-exclamation-triangle w-5 h-5 flex-shrink-0' : 'i-heroicons-check-circle w-5 h-5 flex-shrink-0'" 
+                />
+                {{ notificationModalTitle || (notificationModalType === 'error' ? 'Error' : 'Notification') }}
+              </h3>
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showNotificationModal = false" />
+            </div>
+          </template>
+
+          <div class="space-y-3 p-2 text-xs">
+            <div 
+              class="bg-[#0c0d0e] text-[#e3e6e8] border border-[#2a2d31] font-mono text-[11px] p-4 rounded overflow-auto select-text max-h-[350px] whitespace-pre-wrap break-all"
+            >
+              {{ notificationModalMessage }}
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end">
+              <UButton 
+                color="warning"
+                @click="showNotificationModal = false"
+              >
+                Dismiss
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
     </div>
   </UApp>
 </template>
@@ -1030,6 +1117,36 @@ function reopenWelcomeTab() {
 const showAddSaModal = ref(false)
 const newSaJson = ref('')
 const savingSa = ref(false)
+
+// Custom alert/notification modal state
+const showNotificationModal = ref(false)
+const notificationModalTitle = ref('')
+const notificationModalMessage = ref('')
+const notificationModalType = ref('error')
+
+function showNotification(title, message, type = 'error') {
+  notificationModalTitle.value = title
+  let msg = ''
+  if (message && typeof message === 'object') {
+    msg = message.message || JSON.stringify(message, null, 2)
+  } else if (message) {
+    msg = String(message)
+  } else {
+    msg = 'Unknown error'
+  }
+  notificationModalMessage.value = msg
+  notificationModalType.value = type
+  showNotificationModal.value = true
+}
+
+// Shadow global window.alert to automatically show in the custom scrollable modal
+function alert(message) {
+  const msgStr = String(message)
+  const isSuccess = msgStr.toLowerCase().includes('success') || 
+                    msgStr.toLowerCase().includes('copied') || 
+                    msgStr.includes('Successfully')
+  showNotification(isSuccess ? 'Success' : 'Error', message, isSuccess ? 'success' : 'error')
+}
 
 // Auth Modal States
 const showClaimsModal = ref(false)
@@ -1229,7 +1346,10 @@ function openTab(type, email, projectId) {
       queryPreset: 'Basic Fetch',
       queryScript: '',
       queryOutput: '',
-      runningQuery: false
+      runningQuery: false,
+      authSortField: 'email',
+      authSortDir: 'asc',
+      authFilterEmail: ''
     }
     openTabs.value.push(newTab)
     const reactiveTab = openTabs.value[openTabs.value.length - 1]
@@ -1248,6 +1368,56 @@ function closeTab(tabId) {
   openTabs.value = openTabs.value.filter(t => t.id !== tabId)
   if (activeTabId.value === tabId) {
     activeTabId.value = openTabs.value.length > 0 ? openTabs.value[openTabs.value.length - 1].id : 'welcome'
+  }
+}
+
+function getFilteredSortedUsers(tab) {
+  if (!tab || !tab.users) return []
+  
+  let result = [...tab.users]
+  
+  // Local email filter
+  if (tab.authFilterEmail && tab.authFilterEmail.trim()) {
+    const filterText = tab.authFilterEmail.trim().toLowerCase()
+    result = result.filter(u => u.email && u.email.toLowerCase().includes(filterText))
+  }
+  
+  // Sorting
+  const field = tab.authSortField || 'email'
+  const dir = tab.authSortDir || 'asc'
+  const isAsc = dir === 'asc'
+  
+  result.sort((a, b) => {
+    let valA = a[field]
+    let valB = b[field]
+    
+    if (field === 'createdAt' || field === 'lastLoginAt') {
+      const parsedA = parseInt(valA)
+      valA = !isNaN(parsedA) ? parsedA : (valA ? new Date(valA).getTime() : 0)
+      const parsedB = parseInt(valB)
+      valB = !isNaN(parsedB) ? parsedB : (valB ? new Date(valB).getTime() : 0)
+    } else if (field === 'disabled') {
+      valA = valA ? 1 : 0
+      valB = valB ? 1 : 0
+    } else {
+      valA = valA ? String(valA).toLowerCase() : ''
+      valB = valB ? String(valB).toLowerCase() : ''
+    }
+    
+    if (valA < valB) return isAsc ? -1 : 1
+    if (valA > valB) return isAsc ? 1 : -1
+    return 0
+  })
+  
+  return result
+}
+
+function toggleAuthSort(tab, field) {
+  if (tab.authSortField === field) {
+    tab.authSortDir = tab.authSortDir === 'asc' ? 'desc' : 'asc'
+  } else {
+    tab.authSortField = field
+    tab.authSortDir = 'asc'
   }
 }
 
@@ -1488,7 +1658,7 @@ async function runSimpleQueryAction(tab) {
       }
       
       if (tab.querySortField) {
-        structuredQuery.order = [{
+        structuredQuery.orderBy = [{
           field: { fieldPath: tab.querySortField },
           direction: tab.querySortDir === 'asc' ? 'ASCENDING' : 'DESCENDING'
         }]
@@ -1783,6 +1953,18 @@ function getTableColumns(docs) {
     Object.keys(cleaned).forEach(k => columns.add(k))
   })
   return Array.from(columns).slice(0, 8)
+}
+
+function getAvailableFields(tab) {
+  if (!tab || !tab.documents || tab.documents.length === 0) return []
+  const columns = new Set()
+  tab.documents.forEach(doc => {
+    if (doc.fields) {
+      const cleaned = cleanDocFields(doc.fields)
+      Object.keys(cleaned).forEach(k => columns.add(k))
+    }
+  })
+  return Array.from(columns).sort()
 }
 
 function getColumnValue(doc, col) {
