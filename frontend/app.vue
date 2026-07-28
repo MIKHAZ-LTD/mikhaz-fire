@@ -6,20 +6,31 @@
     <aside class="w-80 border-r border-[#2a2d31] bg-[#121315] flex flex-col flex-shrink-0">
       <!-- Sidebar Header -->
       <div class="p-4 border-b border-[#2a2d31] flex items-center justify-between">
-        <div class="flex items-center gap-2 cursor-pointer select-none" @click="reopenWelcomeTab" title="Show Welcome Screen">
-          <!-- Logo -->
-          <img src="/logo.svg" class="w-6 h-6 object-contain" alt="Logo" />
-          <h1 class="font-bold text-lg font-display tracking-wide text-white">Mikhaz Fire</h1>
+        <div>
+          <h1 class="text-sm font-bold text-white tracking-wide">Mikhaz Fire</h1>
+          <p class="text-[10px] text-[#9da5ac]">Auth & Firestore Controller</p>
         </div>
-        <!-- Add Service Account Button -->
-        <UButton
-          icon="i-heroicons-plus"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          @click="showAddSaModal = true"
-          title="Add Service Account"
-        />
+        <div class="flex items-center gap-1.5">
+          <UButton
+            icon="i-heroicons-user-plus"
+            size="xs"
+            color="warning"
+            variant="subtle"
+            :loading="loggingInGoogle"
+            @click="triggerGoogleLogin"
+            title="Sign in with Google Account in Browser"
+          >
+            Google Sign In
+          </UButton>
+          <UButton
+            icon="i-heroicons-key"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            @click="showAddSaModal = true"
+            title="Add Service Account Key JSON"
+          />
+        </div>
       </div>
 
       <!-- Accounts Scan Status -->
@@ -39,8 +50,12 @@
 
       <!-- Accounts / Projects List -->
       <div class="flex-1 overflow-y-auto p-2 space-y-1">
-        <div v-if="accounts.length === 0" class="text-xs text-[#606870] p-4 text-center">
-          No accounts found. Use gcloud or firebase login, or add a service account.
+        <div v-if="accounts.length === 0" class="text-xs text-[#9da5ac] p-4 text-center space-y-3">
+          <p>No Google or Service Accounts connected.</p>
+          <UButton size="xs" color="warning" icon="i-heroicons-user-plus" class="mx-auto" @click="triggerGoogleLogin" :loading="loggingInGoogle">
+            Sign In with Google
+          </UButton>
+          <div class="text-[11px] text-[#606870]">Or add a Service Account JSON key</div>
         </div>
         
         <div v-for="acc in accounts" :key="acc.email" class="space-y-1">
@@ -209,13 +224,34 @@
                 <h2 class="text-xl font-bold text-white">Auth User Manager</h2>
                 <p class="text-xs text-[#9da5ac]">{{ tab.projectId }} &middot; {{ tab.email }} &middot; {{ tab.users ? tab.users.length : 0 }} loaded users</p>
               </div>
-              <UButton
-                color="warning"
-                size="sm"
-                @click="openCreateUserModal(tab)"
-              >
-                Create User
-              </UButton>
+              <div class="flex gap-2">
+                <UButton
+                  color="info"
+                  variant="subtle"
+                  size="sm"
+                  icon="i-heroicons-arrow-up-tray"
+                  @click="openExportAuthModal(tab)"
+                >
+                  Export Users
+                </UButton>
+                <UButton
+                  color="success"
+                  variant="subtle"
+                  size="sm"
+                  icon="i-heroicons-arrow-down-tray"
+                  @click="openImportAuthModal(tab)"
+                >
+                  Import Users
+                </UButton>
+                <UButton
+                  color="warning"
+                  size="sm"
+                  icon="i-heroicons-user-plus"
+                  @click="openCreateUserModal(tab)"
+                >
+                  Create User
+                </UButton>
+              </div>
             </div>
 
             <!-- Search and Control Bar -->
@@ -587,6 +623,8 @@
                                 :value="cleanDocFields(doc.fields)"
                                 :is-root="true"
                                 @change="(fieldPath, val) => saveDocFieldChange(tab, doc, fieldPath, val)"
+                                @add-field="(parentPath, fieldName, fieldType, initialVal) => addDocField(tab, doc, parentPath, fieldName, fieldType, initialVal)"
+                                @delete-field="(fieldPath) => deleteDocField(tab, doc, fieldPath)"
                                 @editJson="editDocumentJSON(tab, doc)"
                                 @deleteDoc="deleteDocumentConfirm(tab, doc)"
                                 @openTab="openDocInNewTab(tab, doc)"
@@ -819,6 +857,295 @@
             <div class="flex justify-end gap-2">
               <UButton color="neutral" variant="ghost" @click="showEditUserModal = false">Cancel</UButton>
               <UButton color="warning" @click="saveUserEdit">Save Changes</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Modal: Export Auth Users -->
+    <UModal v-model:open="showExportAuthModal" :dismissible="false" :ui="{ content: 'sm:max-w-xl' }">
+      <template #content>
+        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-500 text-lg">📤</span>
+                <h3 class="text-base font-semibold leading-6 text-white">Export Auth Users & Custom Claims</h3>
+              </div>
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showExportAuthModal = false" />
+            </div>
+          </template>
+
+          <div class="space-y-4 p-2 text-xs">
+            <div v-if="exportAuthLoading" class="py-8 text-center text-[#9da5ac] space-y-2">
+              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-500" />
+              <p>Exporting all Auth users and custom claims from project...</p>
+            </div>
+
+            <div v-else-if="exportAuthData" class="space-y-4">
+              <!-- Summary Card -->
+              <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-semibold text-white">
+                    {{ exportAuthData.count }} Users Ready to Export
+                  </div>
+                  <div class="text-[11px] text-[#9da5ac]">
+                    Includes UIDs, emails, social providers, and {{ countUsersWithClaims(exportAuthData.users) }} user(s) with custom claims.
+                  </div>
+                </div>
+                <UBadge color="warning" variant="subtle" size="sm">
+                  JSON Format
+                </UBadge>
+              </div>
+
+              <!-- Password Hash Parameters Section -->
+              <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5 font-semibold text-amber-500">
+                    <span>🔑</span>
+                    <span>Password Hash Parameters</span>
+                  </div>
+                  <span class="text-[10px] text-[#9da5ac]">Optional, but recommended for full migration</span>
+                </div>
+                <p class="text-[#9da5ac] leading-relaxed">
+                  Firebase encrypts passwords using modified SCRYPT. To allow users to sign in with their existing passwords in a target project, state or save your source project's hash parameters below. They will be embedded into the export JSON.
+                </p>
+
+                <div class="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Signer Key</span>
+                      <code class="text-amber-400 text-[10px]">--hash-key</code>
+                    </div>
+                    <UInput v-model="exportAuthHashParams.signerKey" placeholder="e.g. jx8Y...==" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Salt Separator</span>
+                      <code class="text-amber-400 text-[10px]">--salt-separator</code>
+                    </div>
+                    <UInput v-model="exportAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Rounds</span>
+                      <code class="text-amber-400 text-[10px]">--rounds</code>
+                    </div>
+                    <UInput v-model.number="exportAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Memory Cost</span>
+                      <code class="text-amber-400 text-[10px]">--mem-cost</code>
+                    </div>
+                    <UInput v-model.number="exportAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                </div>
+
+                <!-- Guidance Box -->
+                <div class="p-2.5 bg-[#0c0d0e] border border-[#2a2d31] rounded text-[11px] text-[#9da5ac] space-y-1">
+                  <div class="font-semibold text-white">💡 How to find these parameters in Firebase Console:</div>
+                  <div>1. Go to Firebase Console → <strong>Authentication</strong> → <strong>Users</strong> tab.</div>
+                  <div>2. Click the <strong>three vertical dots</strong> (top right of user table).</div>
+                  <div>3. Select <strong>Password hash parameters</strong> and copy the values above.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-between items-center w-full">
+              <div class="text-[11px] text-[#606870] truncate max-w-[200px]">
+                Custom claims & hashes preserved.
+              </div>
+              <div class="flex items-center gap-2 whitespace-nowrap">
+                <UButton color="neutral" variant="ghost" size="sm" class="whitespace-nowrap shrink-0" @click="showExportAuthModal = false">
+                  Cancel
+                </UButton>
+                <UButton color="neutral" variant="subtle" size="sm" icon="i-heroicons-clipboard-document" class="whitespace-nowrap shrink-0" @click="copyExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
+                  Copy JSON
+                </UButton>
+                <UButton color="warning" size="sm" icon="i-heroicons-arrow-down-tray" class="whitespace-nowrap shrink-0 font-medium" @click="downloadExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
+                  Download JSON
+                </UButton>
+              </div>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Modal: Import Auth Users -->
+    <UModal v-model:open="showImportAuthModal" :dismissible="false" :ui="{ content: 'sm:max-w-xl' }">
+      <template #content>
+        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-500 text-lg">📥</span>
+                <h3 class="text-base font-semibold leading-6 text-white">Import Auth Users & Custom Claims</h3>
+              </div>
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showImportAuthModal = false" />
+            </div>
+          </template>
+
+          <div class="space-y-4 p-2 text-xs">
+            <!-- Step 1: Select JSON File or Paste -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label class="font-semibold text-[#c0c6cb]">1. Load Users Data (JSON)</label>
+                <input type="file" id="auth-import-file-input" accept=".json" class="hidden" @change="onImportFileSelected" />
+                <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-folder-open" @click="triggerImportFilePicker">
+                  Upload JSON File
+                </UButton>
+              </div>
+              <UTextarea
+                v-model="importAuthJsonInput"
+                placeholder='Paste JSON here or click "Upload JSON File". Supports mikhaz-fire export or Firebase CLI export format.'
+                rows="5"
+                class="w-full font-mono text-[11px] bg-[#0c0d0e]"
+                @input="parseImportJsonInput"
+              />
+            </div>
+
+            <!-- JSON Parsing Status Summary -->
+            <div v-if="parsedImportSummary" class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold text-white">
+                  {{ parsedImportSummary.userCount }} User(s) Detected
+                </div>
+                <div class="text-[11px] text-[#9da5ac]">
+                  {{ parsedImportSummary.claimsCount }} user(s) with custom claims &middot; {{ parsedImportSummary.hashCount }} user(s) with password hashes.
+                </div>
+              </div>
+              <UBadge :color="parsedImportSummary.userCount > 0 ? 'success' : 'danger'" variant="subtle" size="sm">
+                {{ parsedImportSummary.userCount > 0 ? 'Valid JSON' : 'Invalid Data' }}
+              </UBadge>
+            </div>
+
+            <!-- Step 2: Password Hash Parameters -->
+            <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5 font-semibold text-amber-500">
+                  <span>🔐</span>
+                  <span>2. Password Hash Parameters</span>
+                </div>
+                <span v-if="parsedImportSummary && parsedImportSummary.hasEmbeddedParams" class="text-[10px] text-emerald-400 font-semibold">
+                  ✓ Auto-filled from JSON
+                </span>
+              </div>
+              <p class="text-[#9da5ac] leading-relaxed">
+                If imported users contain password hashes, fill in or paste the source project's hashing parameters below so passwords migrate without forcing resets.
+              </p>
+
+              <div class="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+                <div>
+                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <span>Hash Algorithm</span>
+                    <code class="text-amber-400 text-[10px]">--hash-algo</code>
+                  </div>
+                  <select v-model="importAuthHashParams.hashAlgorithm" class="w-full bg-[#0c0d0e] border border-[#2a2d31] rounded-md px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                    <option value="SCRYPT">SCRYPT (Firebase Modified)</option>
+                    <option value="STANDARD_SCRYPT">STANDARD_SCRYPT</option>
+                    <option value="BCRYPT">BCRYPT</option>
+                    <option value="PBKDF2_SHA256">PBKDF2_SHA256</option>
+                    <option value="HMAC_SHA256">HMAC_SHA256</option>
+                    <option value="HMAC_SHA1">HMAC_SHA1</option>
+                    <option value="HMAC_MD5">HMAC_MD5</option>
+                    <option value="MD5">MD5</option>
+                    <option value="SHA1">SHA1</option>
+                    <option value="SHA256">SHA256</option>
+                    <option value="SHA512">SHA512</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <span>Signer Key</span>
+                    <code class="text-amber-400 text-[10px]">--hash-key</code>
+                  </div>
+                  <UInput v-model="importAuthHashParams.signerKey" placeholder="Base64 signer key from source project" class="w-full bg-[#0c0d0e]" />
+                </div>
+                <div>
+                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <span>Salt Separator</span>
+                    <code class="text-amber-400 text-[10px]">--salt-separator</code>
+                  </div>
+                  <UInput v-model="importAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#0c0d0e]" />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Rounds</span>
+                    </div>
+                    <UInput v-model.number="importAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                      <span>Memory Cost</span>
+                    </div>
+                    <UInput v-model.number="importAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#0c0d0e]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Import Results Card -->
+            <div v-if="importAuthResult" class="p-3 border rounded-lg space-y-2" :class="importAuthResult.success ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/20 border-rose-500/30'">
+              <div class="flex items-center justify-between">
+                <div class="font-semibold text-white flex items-center gap-2">
+                  <span :class="importAuthResult.success ? 'text-emerald-400' : 'text-amber-400'">
+                    {{ importAuthResult.success ? '✓ Import Completed' : '⚠️ Import Completed with Issues' }}
+                  </span>
+                </div>
+                <div class="text-[11px] text-[#9da5ac]">
+                  {{ importAuthResult.importedCount }} imported &middot; {{ importAuthResult.failedCount }} failed
+                </div>
+              </div>
+
+              <!-- Error details table if any -->
+              <div v-if="importAuthResult.errors && importAuthResult.errors.length > 0" class="max-h-36 overflow-auto border border-[#2a2d31] rounded">
+                <table class="w-full text-left text-[11px]">
+                  <thead class="bg-[#121315] text-[#9da5ac]">
+                    <tr>
+                      <th class="p-1.5">Index</th>
+                      <th class="p-1.5">Email</th>
+                      <th class="p-1.5">Error Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(err, idx) in importAuthResult.errors" :key="idx" class="border-t border-[#2a2d31] text-rose-300">
+                      <td class="p-1.5 font-mono">{{ err.index }}</td>
+                      <td class="p-1.5 font-mono">{{ err.email || '-' }}</td>
+                      <td class="p-1.5">{{ err.message }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-between items-center w-full">
+              <div class="text-[11px] text-[#606870] truncate max-w-[200px]">
+                Target: {{ activeTabContext?.projectId || '' }}
+              </div>
+              <div class="flex items-center gap-2 whitespace-nowrap">
+                <UButton color="neutral" variant="ghost" size="sm" class="whitespace-nowrap shrink-0" @click="showImportAuthModal = false">
+                  Cancel
+                </UButton>
+                <UButton
+                  color="warning"
+                  size="sm"
+                  icon="i-heroicons-arrow-down-tray"
+                  class="whitespace-nowrap shrink-0 font-medium"
+                  :loading="importAuthLoading"
+                  :disabled="importAuthLoading || !parsedImportSummary || parsedImportSummary.userCount === 0"
+                  @click="runImportAuthUsers(activeTabContext)"
+                >
+                  Import {{ parsedImportSummary ? parsedImportSummary.userCount : '' }} Users
+                </UButton>
+              </div>
             </div>
           </template>
         </UCard>
@@ -1073,11 +1400,14 @@ import { ref, onMounted, reactive } from 'vue'
 import {
   GetAccounts,
   AddServiceAccount,
+  LoginGoogleAccount,
   ListProjects,
   ListAuthUsers,
   CreateAuthUser,
   UpdateAuthUser,
   DeleteAuthUser,
+  ExportAuthUsers,
+  ImportAuthUsers,
   ListRootCollections,
   ListDocuments,
   GetDocument,
@@ -1095,6 +1425,7 @@ const projects = ref([])
 const expandedAccount = ref(null)
 const scanning = ref(false)
 const loadingProjects = ref(false)
+const loggingInGoogle = ref(false)
 
 // Tabs State
 const openTabs = ref([])
@@ -1152,6 +1483,30 @@ function alert(message) {
 const showClaimsModal = ref(false)
 const showCreateUserModal = ref(false)
 const showEditUserModal = ref(false)
+const showExportAuthModal = ref(false)
+const exportAuthLoading = ref(false)
+const exportAuthData = ref(null)
+const exportAuthHashParams = reactive({
+  signerKey: '',
+  saltSeparator: 'Bw==',
+  rounds: 8,
+  memoryCost: 14
+})
+
+const showImportAuthModal = ref(false)
+const importAuthLoading = ref(false)
+const importAuthJsonInput = ref('')
+const importAuthHashParams = reactive({
+  hashAlgorithm: 'SCRYPT',
+  signerKey: '',
+  saltSeparator: 'Bw==',
+  rounds: 8,
+  memoryCost: 14
+})
+const importAuthResult = ref(null)
+const parsedImportSummary = ref(null)
+const importFileInput = ref(null)
+
 const activeUser = ref(null)
 const activeTabContext = ref(null)
 const claimsJson = ref('{}')
@@ -1204,9 +1559,26 @@ async function refreshAccounts() {
     const res = await GetAccounts()
     accounts.value = res || []
   } catch (err) {
-    console.error('Failed to load accounts:', err)
+    alert('Failed to scan credentials: ' + err)
   } finally {
     scanning.value = false
+  }
+}
+
+async function triggerGoogleLogin() {
+  loggingInGoogle.value = true
+  showNotification('Google Login', 'Opening browser to complete Google Sign In...', 'info')
+  try {
+    const acc = await LoginGoogleAccount()
+    if (acc && acc.email) {
+      showNotification('Success', `Successfully signed in as ${acc.email}!`, 'success')
+      await refreshAccounts()
+      toggleAccount(acc.email)
+    }
+  } catch (err) {
+    showNotification('Login Failed', 'Google authentication failed: ' + err, 'error')
+  } finally {
+    loggingInGoogle.value = false
   }
 }
 
@@ -1452,6 +1824,176 @@ async function fetchAuthUsersNext(tab) {
     alert('Failed to load more users: ' + err)
   } finally {
     tab.loading = false
+  }
+}
+
+function countUsersWithClaims(users) {
+  if (!users) return 0
+  return users.filter(u => (u.customClaims && Object.keys(u.customClaims).length > 0) || u.customAttributes).length
+}
+
+async function openExportAuthModal(tab) {
+  activeTabContext.value = tab
+  showExportAuthModal.value = true
+  exportAuthLoading.value = true
+  exportAuthData.value = null
+  exportAuthHashParams.signerKey = ''
+  exportAuthHashParams.saltSeparator = 'Bw=='
+  exportAuthHashParams.rounds = 8
+  exportAuthHashParams.memoryCost = 14
+  try {
+    const res = await ExportAuthUsers(tab.email, tab.projectId)
+    exportAuthData.value = res
+  } catch (err) {
+    showNotification('Error', 'Failed to export auth users: ' + err, 'error')
+    showExportAuthModal.value = false
+  } finally {
+    exportAuthLoading.value = false
+  }
+}
+
+function copyExportAuthJson() {
+  if (!exportAuthData.value) return
+  const fullExport = {
+    users: exportAuthData.value.users,
+    hashParameters: {
+      hashAlgorithm: 'SCRYPT',
+      signerKey: exportAuthHashParams.signerKey,
+      saltSeparator: exportAuthHashParams.saltSeparator || 'Bw==',
+      rounds: exportAuthHashParams.rounds || 8,
+      memoryCost: exportAuthHashParams.memoryCost || 14
+    }
+  }
+  const jsonStr = JSON.stringify(fullExport, null, 2)
+  navigator.clipboard.writeText(jsonStr)
+  showNotification('Success', 'Exported users & hash parameters copied to clipboard!', 'success')
+}
+
+function downloadExportAuthJson() {
+  if (!exportAuthData.value || !activeTabContext.value) return
+  const fullExport = {
+    users: exportAuthData.value.users,
+    hashParameters: {
+      hashAlgorithm: 'SCRYPT',
+      signerKey: exportAuthHashParams.signerKey,
+      saltSeparator: exportAuthHashParams.saltSeparator || 'Bw==',
+      rounds: exportAuthHashParams.rounds || 8,
+      memoryCost: exportAuthHashParams.memoryCost || 14
+    }
+  }
+  const jsonStr = JSON.stringify(fullExport, null, 2)
+  const blob = new Blob([jsonStr], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `auth-users-${activeTabContext.value.projectId}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function openImportAuthModal(tab) {
+  activeTabContext.value = tab
+  showImportAuthModal.value = true
+  importAuthJsonInput.value = ''
+  importAuthResult.value = null
+  parsedImportSummary.value = null
+  importAuthHashParams.hashAlgorithm = 'SCRYPT'
+  importAuthHashParams.signerKey = ''
+  importAuthHashParams.saltSeparator = 'Bw=='
+  importAuthHashParams.rounds = 8
+  importAuthHashParams.memoryCost = 14
+}
+
+function triggerImportFilePicker() {
+  const el = document.getElementById('auth-import-file-input')
+  if (el) {
+    el.click()
+  }
+}
+
+function onImportFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    importAuthJsonInput.value = e.target.result
+    parseImportJsonInput()
+  }
+  reader.readAsText(file)
+}
+
+function parseImportJsonInput() {
+  parsedImportSummary.value = null
+  if (!importAuthJsonInput.value.trim()) return
+
+  try {
+    const raw = JSON.parse(importAuthJsonInput.value)
+    let userArray = []
+    let embeddedParams = null
+
+    if (Array.isArray(raw)) {
+      userArray = raw
+    } else if (raw && typeof raw === 'object') {
+      if (Array.isArray(raw.users)) {
+        userArray = raw.users
+      }
+      if (raw.hashParameters) {
+        embeddedParams = raw.hashParameters
+      }
+    }
+
+    if (embeddedParams) {
+      if (embeddedParams.hashAlgorithm) importAuthHashParams.hashAlgorithm = embeddedParams.hashAlgorithm
+      if (embeddedParams.signerKey) importAuthHashParams.signerKey = embeddedParams.signerKey
+      if (embeddedParams.saltSeparator) importAuthHashParams.saltSeparator = embeddedParams.saltSeparator
+      if (embeddedParams.rounds) importAuthHashParams.rounds = embeddedParams.rounds
+      if (embeddedParams.memoryCost) importAuthHashParams.memoryCost = embeddedParams.memoryCost
+    }
+
+    const userCount = userArray.length
+    const claimsCount = userArray.filter(u => (u.customClaims && Object.keys(u.customClaims).length > 0) || u.customAttributes).length
+    const hashCount = userArray.filter(u => u.passwordHash).length
+
+    parsedImportSummary.value = {
+      userCount,
+      claimsCount,
+      hashCount,
+      hasEmbeddedParams: !!embeddedParams,
+      rawUsers: userArray
+    }
+  } catch (err) {
+    parsedImportSummary.value = null
+  }
+}
+
+async function runImportAuthUsers(tab) {
+  if (!parsedImportSummary.value || parsedImportSummary.value.userCount === 0) return
+
+  importAuthLoading.value = true
+  importAuthResult.value = null
+
+  const req = {
+    users: parsedImportSummary.value.rawUsers,
+    hashAlgorithm: importAuthHashParams.hashAlgorithm || 'SCRYPT',
+    signerKey: importAuthHashParams.signerKey || '',
+    saltSeparator: importAuthHashParams.saltSeparator || 'Bw==',
+    rounds: Number(importAuthHashParams.rounds) || 8,
+    memoryCost: Number(importAuthHashParams.memoryCost) || 14
+  }
+
+  try {
+    const res = await ImportAuthUsers(tab.email, tab.projectId, req)
+    importAuthResult.value = res
+    if (res.success || res.importedCount > 0) {
+      showNotification('Success', `Imported ${res.importedCount} user(s) into ${tab.projectId}!`, 'success')
+      fetchAuthUsers(tab)
+    } else {
+      showNotification('Import Failed', `Failed to import users. Check details in modal.`, 'error')
+    }
+  } catch (err) {
+    showNotification('Error', 'Import failed: ' + err, 'error')
+  } finally {
+    importAuthLoading.value = false
   }
 }
 
@@ -1920,6 +2462,7 @@ function downloadExportFile() {
 // Convert typed Firestore fields to clean JS Object recursively
 function cleanDocFields(fields) {
   const res = {}
+  if (!fields) return res
   for (const key in fields) {
     res[key] = cleanDocValue(fields[key])
   }
@@ -2052,9 +2595,70 @@ async function saveDocFieldChange(tab, doc, fieldPath, newVal) {
     const relativePath = docIdx !== -1 ? doc.name.substring(docIdx + prefix.length) : doc.name
 
     await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
-    fetchDocuments(tab)
+    doc.fields = updatedTypedFields
   } catch (err) {
     alert('Failed to save field change: ' + err)
+  }
+}
+
+async function addDocField(tab, doc, parentPath, fieldName, fieldType, initialVal) {
+  const cleanFields = cleanDocFields(doc.fields)
+  const fullPath = parentPath ? `${parentPath}/${fieldName}` : fieldName
+  const pathParts = fullPath.split('/')
+  let cur = cleanFields
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    const part = pathParts[i]
+    if (cur[part] === undefined) {
+      cur[part] = {}
+    }
+    cur = cur[part]
+  }
+  const lastPart = pathParts[pathParts.length - 1]
+  cur[lastPart] = initialVal
+
+  const updatedTypedFields = convertJsonToFirestoreFields(cleanFields)
+  
+  try {
+    const prefix = '/documents/'
+    const docIdx = doc.name.indexOf(prefix)
+    const relativePath = docIdx !== -1 ? doc.name.substring(docIdx + prefix.length) : doc.name
+
+    await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
+    doc.fields = updatedTypedFields
+  } catch (err) {
+    alert('Failed to add field: ' + err)
+  }
+}
+
+async function deleteDocField(tab, doc, fieldPath) {
+  if (!confirm(`Are you sure you want to delete field "${fieldPath}"?`)) return
+  const cleanFields = cleanDocFields(doc.fields)
+  const pathParts = fieldPath.split('/')
+  let cur = cleanFields
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    const part = pathParts[i]
+    if (cur[part] === undefined) return
+    cur = cur[part]
+  }
+  const lastPart = pathParts[pathParts.length - 1]
+  if (Array.isArray(cur)) {
+    const idx = parseInt(lastPart)
+    if (!isNaN(idx)) cur.splice(idx, 1)
+  } else {
+    delete cur[lastPart]
+  }
+
+  const updatedTypedFields = convertJsonToFirestoreFields(cleanFields)
+  
+  try {
+    const prefix = '/documents/'
+    const docIdx = doc.name.indexOf(prefix)
+    const relativePath = docIdx !== -1 ? doc.name.substring(docIdx + prefix.length) : doc.name
+
+    await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
+    doc.fields = updatedTypedFields
+  } catch (err) {
+    alert('Failed to delete field: ' + err)
   }
 }
 
@@ -2092,6 +2696,24 @@ async function fetchDocumentsNext(tab) {
   }
 }
 
+function isTypedFirestoreField(val) {
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    const keys = Object.keys(val)
+    const firestoreTypes = ['stringValue', 'integerValue', 'doubleValue', 'booleanValue', 'mapValue', 'arrayValue', 'timestampValue', 'nullValue', 'bytesValue', 'referenceValue', 'geoPointValue']
+    return keys.some(k => firestoreTypes.includes(k))
+  }
+  return false
+}
+
+function prepareFieldsForSaving(parsedJson) {
+  if (!parsedJson || typeof parsedJson !== 'object') return {}
+  const values = Object.values(parsedJson)
+  if (values.length > 0 && values.every(isTypedFirestoreField)) {
+    return parsedJson
+  }
+  return convertJsonToFirestoreFields(parsedJson)
+}
+
 function openAddDocModal(tab) {
   activeTabContext.value = tab
   newDocId.value = ''
@@ -2103,15 +2725,15 @@ async function saveNewDoc() {
   const tab = activeTabContext.value
   if (!tab) return
   
-  let fields = {}
+  let parsed = {}
   try {
-    fields = JSON.parse(newDocFieldsJson.value.trim() || '{}')
+    parsed = JSON.parse(newDocFieldsJson.value.trim() || '{}')
   } catch (e) {
     alert('Invalid JSON fields: ' + e)
     return
   }
 
-  // Path is collection + id
+  const fields = prepareFieldsForSaving(parsed)
   const path = tab.activeCollection + '/' + (newDocId.value.trim() || generateId())
   try {
     await SaveDocument(tab.email, tab.projectId, '', path, fields, true)
@@ -2126,25 +2748,30 @@ function editDocumentJSON(tab, doc) {
   activeTabContext.value = tab
   const docId = getDocId(doc.name)
   activeDocPath.value = tab.activeCollection + '/' + docId
-  activeDocJson.value = JSON.stringify(doc.fields || {}, null, 2)
+  activeDocJson.value = JSON.stringify(cleanDocFields(doc.fields), null, 2)
   showDocModal.value = true
 }
 
 async function saveDocFromJSON() {
   const tab = activeTabContext.value
   if (!tab) return
-  let fields = {}
+  let parsed = {}
   try {
-    fields = JSON.parse(activeDocJson.value.trim())
+    parsed = JSON.parse(activeDocJson.value.trim() || '{}')
   } catch (err) {
-    alert('Invalid JSON data format')
+    alert('Invalid JSON data format: ' + err)
     return
   }
+
+  const fields = prepareFieldsForSaving(parsed)
 
   try {
     await SaveDocument(tab.email, tab.projectId, '', activeDocPath.value, fields, false)
     showDocModal.value = false
-    fetchDocuments(tab)
+    const targetDoc = tab.documents ? tab.documents.find(d => getDocId(d.name) === getDocId(activeDocPath.value)) : null
+    if (targetDoc) {
+      targetDoc.fields = fields
+    }
   } catch (err) {
     alert('Failed to save document JSON: ' + err)
   }

@@ -3,7 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -32,10 +38,87 @@ func (a *App) GetAccounts() []Account {
 	return a.credManager.ScanLocalCredentials()
 }
 
+// LoginGoogleAccount initiates an interactive browser OAuth flow to log in a Google account.
+func (a *App) LoginGoogleAccount() (*Account, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to start local OAuth listener: %v", err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	clientID := "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com"
+	scope := "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase"
+
+
+	authURL := fmt.Sprintf("https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline&prompt=consent",
+		url.QueryEscape(clientID),
+		url.QueryEscape(redirectURI),
+		url.QueryEscape(scope),
+	)
+
+	codeChan := make(chan string)
+	errChan := make(chan error)
+
+	mux := http.NewServeMux()
+	server := &http.Server{Handler: mux}
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			http.Error(w, "Missing authorization code", http.StatusBadRequest)
+			errChan <- fmt.Errorf("authorization code missing in callback")
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `
+			<!DOCTYPE html>
+			<html>
+			<head><title>Authentication Successful</title></head>
+			<body style="font-family: system-ui, sans-serif; background: #121315; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+				<div style="text-align: center; background: #1d1f22; padding: 2rem 3rem; border-radius: 12px; border: 1px solid #2a2d31;">
+					<h2 style="color: #f59e0b; margin-top: 0;">✓ Authentication Successful!</h2>
+					<p style="color: #9da5ac;">You have successfully signed in to Mikhaz Fire.</p>
+					<p style="color: #606870; font-size: 0.85rem;">You can close this browser tab and return to the application.</p>
+				</div>
+			</body>
+			</html>
+		`)
+		codeChan <- code
+	})
+
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			errChan <- err
+		}
+	}()
+
+	runtime.BrowserOpenURL(a.ctx, authURL)
+
+	select {
+	case code := <-codeChan:
+		_ = server.Shutdown(context.Background())
+		acc, err := a.credManager.ExchangeCodeForAccount(code, redirectURI, clientID)
+		if err != nil {
+			return nil, err
+		}
+		return acc, nil
+	case err := <-errChan:
+		_ = server.Shutdown(context.Background())
+		return nil, err
+	case <-time.After(3 * time.Minute):
+		_ = server.Shutdown(context.Background())
+		return nil, fmt.Errorf("login timed out after 3 minutes")
+	}
+}
+
 // AddServiceAccount parses and adds a service account key in-memory.
 func (a *App) AddServiceAccount(jsonContent string) (string, error) {
 	return a.credManager.AddServiceAccount(jsonContent)
 }
+
 
 // ListProjects lists Google Cloud / Firebase projects.
 func (a *App) ListProjects(email string) ([]Project, error) {
@@ -99,6 +182,25 @@ func (a *App) DeleteAuthUser(email string, projectId string, uid string) error {
 	}
 	return DeleteAuthUser(token, projectId, uid)
 }
+
+// ExportAuthUsers exports all Auth users for a project with custom claims and hash parameter template.
+func (a *App) ExportAuthUsers(email string, projectId string) (*ExportAuthResponse, error) {
+	_, token, err := a.getAuthToken(email)
+	if err != nil {
+		return nil, err
+	}
+	return ExportAuthUsers(token, projectId)
+}
+
+// ImportAuthUsers imports Auth users with custom claims and password hash parameters.
+func (a *App) ImportAuthUsers(email string, projectId string, req AuthImportRequest) (*AuthImportResult, error) {
+	_, token, err := a.getAuthToken(email)
+	if err != nil {
+		return nil, err
+	}
+	return ImportAuthUsers(token, projectId, req)
+}
+
 
 // ListRootCollections lists root collections in Firestore.
 func (a *App) ListRootCollections(email string, projectId string, databaseId string) ([]string, error) {

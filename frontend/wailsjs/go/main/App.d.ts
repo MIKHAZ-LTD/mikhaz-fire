@@ -14,9 +14,13 @@ export function DeleteAuthUser(arg1:string,arg2:string,arg3:string):Promise<void
 
 export function DeleteDocument(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<void>;
 
+export function ExportAuthUsers(arg1:string,arg2:string):Promise<main.ExportAuthResponse>;
+
 export function GetAccounts():Promise<Array<main.Account>>;
 
 export function GetDocument(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
+
+export function ImportAuthUsers(arg1:string,arg2:string,arg3:main.AuthImportRequest):Promise<main.AuthImportResult>;
 
 export function ListAuthUsers(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string):Promise<main.AuthUsersResponse>;
 
@@ -25,6 +29,8 @@ export function ListDocuments(arg1:string,arg2:string,arg3:string,arg4:string,ar
 export function ListProjects(arg1:string):Promise<Array<main.Project>>;
 
 export function ListRootCollections(arg1:string,arg2:string,arg3:string):Promise<Array<string>>;
+
+export function LoginGoogleAccount():Promise<main.Account>;
 
 export function RunJSScript(arg1:string,arg2:string,arg3:string,arg4:string):Promise<any>;
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -17,16 +18,20 @@ type Project struct {
 }
 
 type AuthUser struct {
-	UID           string                 `json:"uid"`
-	Email         string                 `json:"email"`
-	EmailVerified bool                   `json:"emailVerified"`
-	DisplayName   string                 `json:"displayName"`
-	PhotoURL      string                 `json:"photoUrl"`
-	Disabled      bool                   `json:"disabled"`
-	CreatedAt     string                 `json:"createdAt"`
-	LastLoginAt   string                 `json:"lastLoginAt"`
-	CustomClaims  map[string]interface{} `json:"customClaims"`
-	Providers     []string               `json:"providers"`
+	UID              string                 `json:"uid"`
+	Email            string                 `json:"email"`
+	EmailVerified    bool                   `json:"emailVerified"`
+	DisplayName      string                 `json:"displayName"`
+	PhotoURL         string                 `json:"photoUrl"`
+	Disabled         bool                   `json:"disabled"`
+	CreatedAt        string                 `json:"createdAt"`
+	LastLoginAt      string                 `json:"lastLoginAt"`
+	CustomClaims     map[string]interface{} `json:"customClaims"`
+	CustomAttributes string                 `json:"customAttributes,omitempty"`
+	PasswordHash     string                 `json:"passwordHash,omitempty"`
+	Salt             string                 `json:"salt,omitempty"`
+	Providers        []string               `json:"providers,omitempty"`
+	ProviderUserInfo []interface{}          `json:"providerUserInfo,omitempty"`
 }
 
 type AuthUsersResponse struct {
@@ -139,18 +144,18 @@ func ListAuthUsers(token string, projectId string, pageSize int, pageToken strin
 
 	var raw struct {
 		Users []struct {
-			LocalID          string `json:"localId"`
-			Email            string `json:"email"`
-			EmailVerified    bool   `json:"emailVerified"`
-			DisplayName      string `json:"displayName"`
-			PhotoURL         string `json:"photoUrl"`
-			Disabled         bool   `json:"disabled"`
-			CreatedAt        string `json:"createdAt"`
-			LastLoginAt      string `json:"lastLoginAt"`
-			CustomAttributes string `json:"customAttributes"` // stringified JSON
-			ProviderUserInfo []struct {
-				ProviderID string `json:"providerId"`
-			} `json:"providerUserInfo"`
+			LocalID          string        `json:"localId"`
+			Email            string        `json:"email"`
+			EmailVerified    bool          `json:"emailVerified"`
+			DisplayName      string        `json:"displayName"`
+			PhotoURL         string        `json:"photoUrl"`
+			Disabled         bool          `json:"disabled"`
+			CreatedAt        string        `json:"createdAt"`
+			LastLoginAt      string        `json:"lastLoginAt"`
+			CustomAttributes string        `json:"customAttributes"` // stringified JSON
+			PasswordHash     string        `json:"passwordHash"`
+			Salt             string        `json:"salt"`
+			ProviderUserInfo []interface{} `json:"providerUserInfo"`
 		} `json:"users"`
 		NextPageToken string `json:"nextPageToken"`
 	}
@@ -167,19 +172,27 @@ func ListAuthUsers(token string, projectId string, pageSize int, pageToken strin
 		}
 		var providers []string
 		for _, p := range u.ProviderUserInfo {
-			providers = append(providers, p.ProviderID)
+			if pMap, ok := p.(map[string]interface{}); ok {
+				if pId, ok := pMap["providerId"].(string); ok {
+					providers = append(providers, pId)
+				}
+			}
 		}
 		users = append(users, AuthUser{
-			UID:           u.LocalID,
-			Email:         u.Email,
-			EmailVerified: u.EmailVerified,
-			DisplayName:   u.DisplayName,
-			PhotoURL:      u.PhotoURL,
-			Disabled:      u.Disabled,
-			CreatedAt:     u.CreatedAt,
-			LastLoginAt:   u.LastLoginAt,
-			CustomClaims:  claims,
-			Providers:     providers,
+			UID:              u.LocalID,
+			Email:            u.Email,
+			EmailVerified:    u.EmailVerified,
+			DisplayName:      u.DisplayName,
+			PhotoURL:         u.PhotoURL,
+			Disabled:         u.Disabled,
+			CreatedAt:        u.CreatedAt,
+			LastLoginAt:      u.LastLoginAt,
+			CustomClaims:     claims,
+			CustomAttributes: u.CustomAttributes,
+			PasswordHash:     u.PasswordHash,
+			Salt:             u.Salt,
+			Providers:        providers,
+			ProviderUserInfo: u.ProviderUserInfo,
 		})
 	}
 
@@ -607,5 +620,290 @@ func CopyCollection(srcToken, srcProj, srcDb string, destToken, destProj, destDb
 
 	return copiedCount, nil
 }
+
+type ExportAuthResponse struct {
+	Users          []AuthUser             `json:"users"`
+	Count          int                    `json:"count"`
+	HashParameters map[string]interface{} `json:"hashParameters"`
+}
+
+// ExportAuthUsers fetches all users across pages for a project along with default hash parameters.
+func ExportAuthUsers(token string, projectId string) (*ExportAuthResponse, error) {
+	var allUsers []AuthUser
+	pageToken := ""
+
+	for {
+		resp, err := ListAuthUsers(token, projectId, 1000, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		allUsers = append(allUsers, resp.Users...)
+		if resp.NextPageToken == "" {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+
+	return &ExportAuthResponse{
+		Users: allUsers,
+		Count: len(allUsers),
+		HashParameters: map[string]interface{}{
+			"hashAlgorithm": "SCRYPT",
+			"signerKey":     "",
+			"saltSeparator": "Bw==",
+			"rounds":        8,
+			"memoryCost":    14,
+		},
+	}, nil
+}
+
+type AuthImportRequest struct {
+	Users         []map[string]interface{} `json:"users"`
+	HashAlgorithm string                   `json:"hashAlgorithm"`
+	SignerKey     string                   `json:"signerKey"`
+	SaltSeparator string                   `json:"saltSeparator"`
+	Rounds        int                      `json:"rounds"`
+	MemoryCost    int                      `json:"memoryCost"`
+}
+
+type AuthImportResult struct {
+	Success       bool                     `json:"success"`
+	ImportedCount int                      `json:"importedCount"`
+	FailedCount   int                      `json:"failedCount"`
+	Errors        []map[string]interface{} `json:"errors,omitempty"`
+}
+
+func parseTimestampInt64(val interface{}) (string, bool) {
+	if val == nil {
+		return "", false
+	}
+	switch v := val.(type) {
+	case float64:
+		if v > 0 {
+			return fmt.Sprintf("%.0f", v), true
+		}
+	case int64:
+		if v > 0 {
+			return fmt.Sprintf("%d", v), true
+		}
+	case int:
+		if v > 0 {
+			return fmt.Sprintf("%d", v), true
+		}
+	case string:
+		vStr := strings.TrimSpace(v)
+		if vStr == "" || vStr == "0" {
+			return "", false
+		}
+		if _, err := strconv.ParseInt(vStr, 10, 64); err == nil {
+			return vStr, true
+		}
+	}
+	return "", false
+}
+
+func sanitizeUserForImport(u map[string]interface{}) map[string]interface{} {
+	sanitized := make(map[string]interface{})
+
+	// localId / uid / local_id
+	if uid, ok := u["localId"].(string); ok && uid != "" {
+		sanitized["localId"] = uid
+	} else if uid, ok := u["uid"].(string); ok && uid != "" {
+		sanitized["localId"] = uid
+	} else if uid, ok := u["local_id"].(string); ok && uid != "" {
+		sanitized["localId"] = uid
+	}
+
+	// email
+	if email, ok := u["email"].(string); ok && email != "" {
+		sanitized["email"] = email
+	}
+
+	// emailVerified / email_verified
+	if emailVerified, ok := u["emailVerified"].(bool); ok {
+		sanitized["emailVerified"] = emailVerified
+	} else if emailVerified, ok := u["email_verified"].(bool); ok {
+		sanitized["emailVerified"] = emailVerified
+	}
+
+	// displayName / display_name
+	if displayName, ok := u["displayName"].(string); ok && displayName != "" {
+		sanitized["displayName"] = displayName
+	} else if displayName, ok := u["display_name"].(string); ok && displayName != "" {
+		sanitized["displayName"] = displayName
+	}
+
+	// photoUrl / photoURL / photo_url
+	if photoUrl, ok := u["photoUrl"].(string); ok && photoUrl != "" {
+		sanitized["photoUrl"] = photoUrl
+	} else if photoUrl, ok := u["photoURL"].(string); ok && photoUrl != "" {
+		sanitized["photoUrl"] = photoUrl
+	} else if photoUrl, ok := u["photo_url"].(string); ok && photoUrl != "" {
+		sanitized["photoUrl"] = photoUrl
+	}
+
+	// disabled
+	if disabled, ok := u["disabled"].(bool); ok {
+		sanitized["disabled"] = disabled
+	}
+
+	// passwordHash / password_hash
+	if pwdHash, ok := u["passwordHash"].(string); ok && pwdHash != "" {
+		sanitized["passwordHash"] = pwdHash
+	} else if pwdHash, ok := u["password_hash"].(string); ok && pwdHash != "" {
+		sanitized["passwordHash"] = pwdHash
+	}
+
+	// salt
+	if salt, ok := u["salt"].(string); ok && salt != "" {
+		sanitized["salt"] = salt
+	}
+
+	// createdAt / created_at
+	var createdVal interface{}
+	if val, ok := u["createdAt"]; ok {
+		createdVal = val
+	} else if val, ok := u["created_at"]; ok {
+		createdVal = val
+	}
+	if tsStr, ok := parseTimestampInt64(createdVal); ok {
+		sanitized["createdAt"] = tsStr
+	}
+
+	// lastLoginAt / last_login_at
+	var lastLoginVal interface{}
+	if val, ok := u["lastLoginAt"]; ok {
+		lastLoginVal = val
+	} else if val, ok := u["last_login_at"]; ok {
+		lastLoginVal = val
+	}
+	if tsStr, ok := parseTimestampInt64(lastLoginVal); ok {
+		sanitized["lastLoginAt"] = tsStr
+	}
+
+	// customAttributes / customClaims / custom_attributes
+	if customAttrs, ok := u["customAttributes"].(string); ok && customAttrs != "" {
+		sanitized["customAttributes"] = customAttrs
+	} else if customAttrs, ok := u["custom_attributes"].(string); ok && customAttrs != "" {
+		sanitized["customAttributes"] = customAttrs
+	} else if customClaims, ok := u["customClaims"].(map[string]interface{}); ok && len(customClaims) > 0 {
+		if bytes, err := json.Marshal(customClaims); err == nil {
+			sanitized["customAttributes"] = string(bytes)
+		}
+	}
+
+	// providerUserInfo / provider_user_info
+	if providerUserInfo, ok := u["providerUserInfo"].([]interface{}); ok {
+		sanitized["providerUserInfo"] = providerUserInfo
+	} else if providerUserInfo, ok := u["provider_user_info"].([]interface{}); ok {
+		sanitized["providerUserInfo"] = providerUserInfo
+	}
+
+	return sanitized
+}
+
+// ImportAuthUsers imports users into Firebase Auth via Identity Toolkit accounts:upload API.
+func ImportAuthUsers(token string, projectId string, req AuthImportRequest) (*AuthImportResult, error) {
+	if len(req.Users) == 0 {
+		return nil, fmt.Errorf("no users provided for import")
+	}
+
+	var sanitizedUsers []map[string]interface{}
+	for _, u := range req.Users {
+		sanitizedUsers = append(sanitizedUsers, sanitizeUserForImport(u))
+	}
+
+	var totalImported int
+	var totalFailed int
+	var allErrors []map[string]interface{}
+
+	batchSize := 1000
+	for i := 0; i < len(sanitizedUsers); i += batchSize {
+		end := i + batchSize
+		if end > len(sanitizedUsers) {
+			end = len(sanitizedUsers)
+		}
+		batch := sanitizedUsers[i:end]
+
+		payload := map[string]interface{}{
+			"users": batch,
+		}
+
+		if req.HashAlgorithm != "" {
+			payload["hashAlgorithm"] = req.HashAlgorithm
+		}
+		if req.SignerKey != "" {
+			payload["signerKey"] = req.SignerKey
+		}
+		if req.SaltSeparator != "" {
+			payload["saltSeparator"] = req.SaltSeparator
+		} else if req.HashAlgorithm == "SCRYPT" && req.SignerKey != "" {
+			payload["saltSeparator"] = "Bw=="
+		}
+		if req.Rounds > 0 {
+			payload["rounds"] = req.Rounds
+		}
+		if req.MemoryCost > 0 {
+			payload["memoryCost"] = req.MemoryCost
+		}
+
+		reqUrl := fmt.Sprintf("https://identitytoolkit.googleapis.com/v1/projects/%s/accounts:batchCreate", projectId)
+
+		bodyBytes, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal import payload: %v", err)
+		}
+
+		resBytes, err := doRequest("POST", reqUrl, token, bodyBytes)
+		if err != nil && strings.Contains(err.Error(), "status 404") {
+			// Fallback to accounts:upload with targetProjectId if batchCreate returns 404
+			payload["targetProjectId"] = projectId
+			bodyBytes, _ = json.Marshal(payload)
+			fallbackUrl := fmt.Sprintf("https://identitytoolkit.googleapis.com/v1/accounts:upload?targetProjectId=%s", projectId)
+			resBytes, err = doRequest("POST", fallbackUrl, token, bodyBytes)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("accounts import failed: %v", err)
+		}
+
+		var res struct {
+			ErrorKind string `json:"kind"`
+			Error     []struct {
+				Index   int    `json:"index"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(resBytes, &res); err != nil {
+			return nil, fmt.Errorf("failed to parse upload response: %v", err)
+		}
+
+		batchFailed := len(res.Error)
+		batchSuccess := len(batch) - batchFailed
+		totalImported += batchSuccess
+		totalFailed += batchFailed
+
+		for _, errDetail := range res.Error {
+			userIndex := i + errDetail.Index
+			userEmail := ""
+			if userIndex < len(sanitizedUsers) {
+				userEmail, _ = sanitizedUsers[userIndex]["email"].(string)
+			}
+			allErrors = append(allErrors, map[string]interface{}{
+				"index":   userIndex,
+				"email":   userEmail,
+				"message": errDetail.Message,
+			})
+		}
+	}
+
+	return &AuthImportResult{
+		Success:       totalFailed == 0,
+		ImportedCount: totalImported,
+		FailedCount:   totalFailed,
+		Errors:        allErrors,
+	}, nil
+}
+
 
 

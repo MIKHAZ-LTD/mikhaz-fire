@@ -307,8 +307,94 @@ func (cm *CredentialManager) AddServiceAccount(jsonContent string) (string, erro
 	return acc.Email, nil
 }
 
+func (cm *CredentialManager) ExchangeCodeForAccount(code, redirectURI, clientID string) (*Account, error) {
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", code)
+	data.Set("redirect_uri", redirectURI)
+	data.Set("client_id", clientID)
+
+	resp, err := http.PostForm("https://oauth2.googleapis.com/token", data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var tokenRes struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+	}
+	if err := json.Unmarshal(bodyBytes, &tokenRes); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal token response: %v", err)
+	}
+
+	userReq, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user profile: %v", err)
+	}
+	defer userResp.Body.Close()
+
+	userBody, _ := io.ReadAll(userResp.Body)
+	var userInfo struct {
+		Email string `json:"email"`
+	}
+	_ = json.Unmarshal(userBody, &userInfo)
+
+	if userInfo.Email == "" {
+		return nil, fmt.Errorf("could not retrieve email for account")
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	acc := &Account{
+		Email:        userInfo.Email,
+		Source:       "firebase",
+		RefreshToken: tokenRes.RefreshToken,
+		AccessToken:  tokenRes.AccessToken,
+		ExpiresAt:    time.Now().Add(time.Duration(tokenRes.ExpiresIn) * time.Second),
+		ClientID:     clientID,
+	}
+	cm.accounts[acc.Email] = acc
+
+	// Persist to firebase-tools.json so it stays logged in across app restarts
+	userHome, err := os.UserHomeDir()
+	if err == nil {
+		configPath := filepath.Join(userHome, ".config", "configstore", "firebase-tools.json")
+		_ = os.MkdirAll(filepath.Dir(configPath), 0755)
+		saveData := map[string]interface{}{
+			"user": map[string]interface{}{
+				"email": acc.Email,
+			},
+			"tokens": map[string]interface{}{
+				"access_token":  acc.AccessToken,
+				"refresh_token": acc.RefreshToken,
+				"expires_at":    acc.ExpiresAt.UnixMilli(),
+			},
+		}
+		if bytes, err := json.MarshalIndent(saveData, "", "  "); err == nil {
+			_ = os.WriteFile(configPath, bytes, 0644)
+		}
+	}
+
+	return acc, nil
+}
+
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
 

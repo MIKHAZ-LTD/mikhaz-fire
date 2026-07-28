@@ -6,14 +6,16 @@ A lightweight, high-performance cross-platform desktop application for managing 
 
 ## ✨ Key Features
 
-- 🔑 **Zero-Config Authenticated Session Discovery**:
-  - Automatically scans and loads credentials from local **Firebase CLI** configurations (`firebase-tools.json`).
-  - Automatically scans and loads credentials from **gcloud SDK** configurations (legacy credentials and Application Default Credentials).
-  - Supports adding custom **Service Account JSON** keys directly.
+- 🔑 **Multi-Source Authentication**:
+  - **1-Click Google Sign In**: Sign in directly with any Google account in your browser with zero manual configuration.
+  - **Local CLI Discovery**: Automatically scans and loads credentials from **Firebase CLI** (`firebase-tools.json`) and **gcloud SDK** (`legacy_credentials`, ADC).
+  - **Service Account JSON**: Import custom Service Account `.json` key files directly.
 - 👥 **Firebase Auth Management**:
   - Browse, filter, and search users in real-time.
   - Create new users, update user profiles, or delete users.
-  - Update custom user claims (JSON metadata) and toggle account status.
+  - View and edit custom user claims (JSON metadata).
+  - 📤 **Export Auth Users**: Export users with custom claims, password hashes, salts, and embedded Password Hash Parameters (`--hash-key`, `--salt-separator`, `--rounds`, `--mem-cost`).
+  - 📥 **Import Auth Users**: Import user batches with custom claims and password hash parameters so users can sign in without resetting passwords. Supports both Mikhaz Fire and Firebase CLI export formats.
 - 🗄️ **Firestore Explorer**:
   - Traverse collections, subcollections, and documents hierarchically.
   - View, modify, create, and overwrite documents.
@@ -24,6 +26,32 @@ A lightweight, high-performance cross-platform desktop application for managing 
 - 🔄 **Direct Cross-Project Copying / Syncing**:
   - Copy collections or single documents directly from a source project to a destination project (even across different authenticated Google accounts).
   - Built-in conflict checking to prevent accidental overwrites.
+
+---
+
+## 🔐 Authentication Guide
+
+Mikhaz Fire supports 3 seamless ways to connect your Google Cloud / Firebase projects:
+
+### Method 1: 1-Click Google Sign In (Recommended)
+1. Click the **Google Sign In** button in the sidebar.
+2. Your browser will open the official Google authentication page.
+3. Grant access to your account.
+4. Your account and all associated Firebase projects will automatically appear in the sidebar!
+
+> **Note on Project Permissions**:  
+> No modifications to your GCP/Firebase project settings are required! As long as your Google user account has permission to view/manage Firebase or GCP projects (e.g. Owner, Editor, or Firebase Admin role), Mikhaz Fire will discover and access your projects out of the box.
+
+### Method 2: Service Account JSON Key
+1. Go to your **Firebase Console** → **Project Settings** → **Service Accounts** tab.
+2. Click **Generate new private key** to download the `.json` file.
+3. In Mikhaz Fire, click the **Key** icon (`+`) in the sidebar and upload/paste your Service Account JSON.
+
+### Method 3: Local CLI Session Scan
+If you already use the Firebase CLI or Google Cloud SDK:
+- Run `firebase login` or `gcloud auth login` in your terminal.
+- Click **Rescan** in Mikhaz Fire. The app automatically picks up your active CLI tokens!
+
 
 ---
 

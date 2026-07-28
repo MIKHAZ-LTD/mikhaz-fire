@@ -26,12 +26,20 @@ export function DeleteDocument(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['DeleteDocument'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function ExportAuthUsers(arg1, arg2) {
+  return window['go']['main']['App']['ExportAuthUsers'](arg1, arg2);
+}
+
 export function GetAccounts() {
   return window['go']['main']['App']['GetAccounts']();
 }
 
 export function GetDocument(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetDocument'](arg1, arg2, arg3, arg4);
+}
+
+export function ImportAuthUsers(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ImportAuthUsers'](arg1, arg2, arg3);
 }
 
 export function ListAuthUsers(arg1, arg2, arg3, arg4, arg5) {
@@ -48,6 +56,10 @@ export function ListProjects(arg1) {
 
 export function ListRootCollections(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListRootCollections'](arg1, arg2, arg3);
+}
+
+export function LoginGoogleAccount() {
+  return window['go']['main']['App']['LoginGoogleAccount']();
 }
 
 export function RunJSScript(arg1, arg2, arg3, arg4) {
