@@ -250,6 +250,15 @@ func (a *App) DeleteDocument(email string, projectId string, databaseId string, 
 	return DeleteDocument(token, projectId, databaseId, documentPath)
 }
 
+// ListDocumentSubcollections lists subcollection IDs of a given document.
+func (a *App) ListDocumentSubcollections(email string, projectId string, databaseId string, docPath string) ([]string, error) {
+	_, token, err := a.getAuthToken(email)
+	if err != nil {
+		return nil, err
+	}
+	return ListDocumentSubcollections(token, projectId, databaseId, docPath)
+}
+
 // RunJSScript executes a custom Javascript query script against Firestore.
 func (a *App) RunJSScript(email string, projectId string, databaseId string, script string) (interface{}, error) {
 	_, token, err := a.getAuthToken(email)

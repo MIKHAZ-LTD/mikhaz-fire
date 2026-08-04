@@ -46,6 +46,10 @@ export function ListAuthUsers(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['ListAuthUsers'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function ListDocumentSubcollections(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ListDocumentSubcollections'](arg1, arg2, arg3, arg4);
+}
+
 export function ListDocuments(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['ListDocuments'](arg1, arg2, arg3, arg4, arg5, arg6);
 }

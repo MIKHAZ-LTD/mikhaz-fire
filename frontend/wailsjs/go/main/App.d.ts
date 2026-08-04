@@ -24,6 +24,8 @@ export function ImportAuthUsers(arg1:string,arg2:string,arg3:main.AuthImportRequ
 
 export function ListAuthUsers(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string):Promise<main.AuthUsersResponse>;
 
+export function ListDocumentSubcollections(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<string>>;
+
 export function ListDocuments(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:string):Promise<Record<string, any>>;
 
 export function ListProjects(arg1:string):Promise<Array<main.Project>>;

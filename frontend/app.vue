@@ -391,9 +391,25 @@
               <!-- Header -->
               <div class="p-4 border-b border-[#2a2d31] bg-[#121315] flex justify-between items-center">
                 <div>
-                  <h3 class="font-bold text-white flex items-center gap-2">
+                  <h3 class="font-bold text-white flex items-center gap-2 flex-wrap">
                     <span class="capitalize text-amber-500">{{ tab.firestoreView || 'Explorer' }}</span>
-                    <span v-if="tab.firestoreView === 'explorer' && tab.activeCollection" class="text-xs text-[#9da5ac]">&middot; {{ tab.activeCollection }}</span>
+                    <div v-if="tab.firestoreView === 'explorer' && tab.activeCollection" class="flex items-center gap-1 text-xs text-[#9da5ac]">
+                      <span>&middot;</span>
+                      <template v-for="(seg, idx) in getCollectionBreadcrumbs(tab.activeCollection)" :key="idx">
+                        <span v-if="idx > 0" class="text-[#606870]">&gt;</span>
+                        <button 
+                          v-if="seg.isCollection" 
+                          class="text-amber-400 hover:underline font-mono text-xs cursor-pointer font-semibold"
+                          @click="selectCollection(tab, seg.path)"
+                          title="Navigate to collection"
+                        >
+                          {{ seg.name }}
+                        </button>
+                        <span v-else class="text-[#e3e6e8] font-mono text-xs font-semibold">
+                          {{ seg.name }}
+                        </span>
+                      </template>
+                    </div>
                   </h3>
                 </div>
                 <div class="flex gap-2">
@@ -622,6 +638,12 @@
                                 :label="getDocId(doc.name)"
                                 :value="cleanDocFields(doc.fields)"
                                 :is-root="true"
+                                :subcollections="getDocSubcollections(tab, doc)"
+                                :loading-subcollections="getDocSubcollectionsLoading(tab, doc)"
+                                :subcollections-fetched="getDocSubcollectionsFetched(tab, doc)"
+                                @fetch-subcollections="fetchSubcollectionsForDoc(tab, doc)"
+                                @open-subcollection="(subCol) => openSubcollection(tab, doc, subCol)"
+                                @open-subcollection-in-new-tab="(subCol) => openSubcollectionInNewTab(tab, doc, subCol)"
                                 @change="(fieldPath, val) => saveDocFieldChange(tab, doc, fieldPath, val)"
                                 @add-field="(parentPath, fieldName, fieldType, initialVal) => addDocField(tab, doc, parentPath, fieldName, fieldType, initialVal)"
                                 @delete-field="(fieldPath) => deleteDocField(tab, doc, fieldPath)"
@@ -681,7 +703,33 @@
                                 <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[10px] text-[#9da5ac] truncate max-w-[150px]">
                                   {{ getColumnValue(doc, col) }}
                                 </td>
-                                <td class="p-3 text-right space-x-2" @click.stop>
+                                <td class="p-3 text-right space-x-1" @click.stop>
+                                  <UPopover v-if="getDocSubcollectionsFetched(tab, doc) || getDocSubcollectionsLoading(tab, doc)">
+                                    <UButton size="xs" variant="subtle" color="warning">
+                                      📁 {{ getDocSubcollections(tab, doc).length }} Subcoll
+                                    </UButton>
+                                    <template #content>
+                                      <div class="p-2 space-y-1 bg-[#121315] border border-[#2a2d31] rounded-md shadow-xl text-xs max-w-xs text-left">
+                                        <div class="font-bold text-amber-400 border-b border-[#2a2d31] pb-1 flex justify-between items-center">
+                                          <span>Subcollections</span>
+                                          <UButton size="2xs" color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="fetchSubcollectionsForDoc(tab, doc)" />
+                                        </div>
+                                        <div v-if="getDocSubcollectionsLoading(tab, doc)" class="text-xs text-[#9da5ac] p-2">Loading...</div>
+                                        <div v-else-if="getDocSubcollections(tab, doc).length === 0" class="text-xs text-[#606870] p-2">No subcollections found</div>
+                                        <div v-else v-for="subCol in getDocSubcollections(tab, doc)" :key="subCol" class="flex justify-between items-center gap-2 p-1 hover:bg-[#1d1f22] rounded">
+                                          <span class="font-mono text-amber-300">{{ subCol }}</span>
+                                          <div class="flex gap-1">
+                                            <UButton size="2xs" color="warning" variant="ghost" @click="openSubcollection(tab, doc, subCol)">Open</UButton>
+                                            <UButton size="2xs" color="neutral" variant="ghost" @click="openSubcollectionInNewTab(tab, doc, subCol)">Tab</UButton>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </template>
+                                  </UPopover>
+                                  <UButton v-else size="xs" variant="ghost" color="neutral" icon="i-heroicons-folder" title="Fetch Subcollections" @click="fetchSubcollectionsForDoc(tab, doc)">
+                                    Subcolls
+                                  </UButton>
+
                                   <UButton size="xs" variant="ghost" color="neutral" @click="openDocInNewTab(tab, doc)">Open Tab</UButton>
                                   <UButton size="xs" variant="ghost" color="neutral" @click="editDocumentJSON(tab, doc)">Edit JSON</UButton>
                                   <UButton size="xs" variant="ghost" color="danger" @click="deleteDocumentConfirm(tab, doc)">Delete</UButton>
@@ -1410,6 +1458,7 @@ import {
   ImportAuthUsers,
   ListRootCollections,
   ListDocuments,
+  ListDocumentSubcollections,
   GetDocument,
   SaveDocument,
   DeleteDocument,
@@ -2917,6 +2966,94 @@ function generateId() {
     id += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return id
+}
+
+// Subcollections Management
+function getDocRelativePath(tab, doc) {
+  if (!doc) return ''
+  if (doc.name && doc.name.includes('/documents/')) {
+    return doc.name.split('/documents/')[1]
+  }
+  const docId = getDocId(doc.name || '')
+  if (tab && tab.activeCollection) {
+    return tab.activeCollection + '/' + docId
+  }
+  return docId
+}
+
+async function fetchSubcollectionsForDoc(tab, doc) {
+  if (!tab || !doc) return
+  if (!tab.subcollectionsMap) {
+    tab.subcollectionsMap = {}
+  }
+  const docPath = getDocRelativePath(tab, doc)
+  if (!docPath) return
+
+  tab.subcollectionsMap[docPath] = {
+    list: tab.subcollectionsMap[docPath]?.list || [],
+    loading: true,
+    fetched: false
+  }
+
+  try {
+    const res = await ListDocumentSubcollections(tab.email, tab.projectId, '', docPath)
+    tab.subcollectionsMap[docPath] = {
+      list: res || [],
+      loading: false,
+      fetched: true
+    }
+  } catch (err) {
+    console.error('Failed to list subcollections for ' + docPath, err)
+    tab.subcollectionsMap[docPath] = {
+      list: [],
+      loading: false,
+      fetched: true,
+      error: String(err)
+    }
+  }
+}
+
+function getDocSubcollections(tab, doc) {
+  const docPath = getDocRelativePath(tab, doc)
+  return (tab && tab.subcollectionsMap && tab.subcollectionsMap[docPath]) ? tab.subcollectionsMap[docPath].list : []
+}
+
+function getDocSubcollectionsLoading(tab, doc) {
+  const docPath = getDocRelativePath(tab, doc)
+  return (tab && tab.subcollectionsMap && tab.subcollectionsMap[docPath]) ? tab.subcollectionsMap[docPath].loading : false
+}
+
+function getDocSubcollectionsFetched(tab, doc) {
+  const docPath = getDocRelativePath(tab, doc)
+  return (tab && tab.subcollectionsMap && tab.subcollectionsMap[docPath]) ? tab.subcollectionsMap[docPath].fetched : false
+}
+
+function openSubcollection(tab, doc, subColName) {
+  const docPath = getDocRelativePath(tab, doc)
+  const fullSubColPath = `${docPath}/${subColName}`
+  selectCollection(tab, fullSubColPath)
+}
+
+function openSubcollectionInNewTab(parentTab, doc, subColName) {
+  const docPath = getDocRelativePath(parentTab, doc)
+  const fullSubColPath = `${docPath}/${subColName}`
+  openCollectionInNewTab(parentTab, fullSubColPath)
+}
+
+function getCollectionBreadcrumbs(collPath) {
+  if (!collPath) return []
+  const parts = collPath.split('/')
+  const breadcrumbs = []
+  let currentPath = ''
+  for (let i = 0; i < parts.length; i++) {
+    currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i]
+    breadcrumbs.push({
+      name: parts[i],
+      path: currentPath,
+      isCollection: i % 2 === 0
+    })
+  }
+  return breadcrumbs
 }
 </script>
 

@@ -7,10 +7,10 @@
     >
       <!-- Expand Arrow -->
       <span 
-        v-if="isExpandable" 
+        v-if="isExpandable || isRoot" 
         class="w-5 h-5 flex items-center justify-center cursor-pointer text-[#606870] hover:text-white mr-1 transform transition-transform text-sm shrink-0"
         :class="isOpen ? 'rotate-90' : ''"
-        @click.stop="isOpen = !isOpen"
+        @click.stop="toggleExpand"
       >
         &#9656;
       </span>
@@ -26,7 +26,7 @@
 
       <!-- Type Badge -->
       <span class="text-[9px] px-1 py-0.5 rounded bg-[#1d1f22] text-[#9da5ac] mr-3 shrink-0 scale-90 border border-[#2a2d31]">
-        {{ displayType }}
+        {{ isRoot ? 'document' : displayType }}
       </span>
 
       <!-- Value Display / Editor -->
@@ -76,7 +76,7 @@
         <div v-else class="flex items-center group/val truncate">
           <!-- Primitive Value -->
           <span 
-            v-if="!isExpandable"
+            v-if="!isExpandable && !isRoot"
             class="text-[#e3e6e8] cursor-pointer hover:underline truncate select-all"
             :title="String(value)"
             @dblclick.stop="startEdit"
@@ -86,12 +86,12 @@
 
           <!-- Expandable Summary -->
           <span v-else class="text-[#606870] select-none italic text-[11px]">
-            {{ valueSummary }}
+            {{ isRoot ? (subcollectionsFetched && subcollections.length > 0 ? `{${subcollections.length} subcolls}` : valueSummary) : valueSummary }}
           </span>
 
           <!-- Inline Edit Button (only for primitives) -->
           <UButton 
-            v-if="!isExpandable"
+            v-if="!isExpandable && !isRoot"
             icon="i-heroicons-pencil"
             size="xs"
             color="neutral"
@@ -122,6 +122,16 @@
 
         <!-- Root Toolbar Actions -->
         <template v-if="isRoot">
+          <UButton 
+            v-if="subcollectionsFetched && subcollections.length > 0"
+            size="xs" 
+            color="warning" 
+            variant="subtle" 
+            type="button" 
+            @click.stop="toggleExpand"
+          >
+            📁 {{ subcollections.length }} Subcoll
+          </UButton>
           <UButton size="xs" color="neutral" variant="ghost" type="button" @click.stop="$emit('openTab')">Open Tab</UButton>
           <UButton size="xs" color="neutral" variant="ghost" type="button" @click.stop="$emit('editJson')">Edit JSON</UButton>
           <UButton size="xs" color="danger" variant="ghost" type="button" @click.stop="$emit('deleteDoc')">Delete</UButton>
@@ -217,8 +227,8 @@
       </div>
     </div>
 
-    <!-- Recursive Children -->
-    <div v-if="isExpandable && isOpen" class="mt-0.5">
+    <!-- Recursive Children & Subcollections -->
+    <div v-if="(isExpandable || isRoot) && isOpen" class="mt-0.5">
       <!-- Object/Map fields -->
       <template v-if="displayType === 'map'">
         <JsonTree 
@@ -246,6 +256,77 @@
           @delete-field="(path) => $emit('deleteField', isRoot ? path : `${label}/${path}`)"
         />
       </template>
+
+      <!-- Subcollections Section for Document -->
+      <div v-if="isRoot" class="mt-2 pt-2 border-t border-[#2a2d31]/60">
+        <div 
+          class="flex items-center justify-between hover:bg-[#1d1f22] py-1 px-2 rounded transition-colors text-xs font-semibold text-amber-400 select-none"
+          :style="{ paddingLeft: `${(depth + 1) * 16}px` }"
+        >
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-500">📁</span>
+            <span>Subcollections</span>
+            <span v-if="subcollectionsFetched" class="text-[10px] text-[#9da5ac] bg-[#1d1f22] px-1.5 py-0.5 rounded font-mono border border-[#2a2d31]">
+              {{ subcollections.length }}
+            </span>
+            <span v-if="loadingSubcollections" class="text-[10px] text-amber-400/80 animate-pulse italic ml-1">
+              Loading...
+            </span>
+          </div>
+          <UButton 
+            size="xs" 
+            color="neutral" 
+            variant="ghost" 
+            icon="i-heroicons-arrow-path" 
+            type="button"
+            class="p-0.5"
+            @click.stop="$emit('fetchSubcollections')" 
+            title="Refresh subcollections" 
+          />
+        </div>
+
+        <div v-if="subcollectionsFetched && subcollections.length === 0" 
+             class="text-[11px] text-[#606870] italic py-1 px-2"
+             :style="{ paddingLeft: `${(depth + 2) * 16}px` }">
+          No subcollections found
+        </div>
+
+        <div v-else-if="subcollections && subcollections.length > 0" class="space-y-1 mt-1">
+          <div 
+            v-for="subCol in subcollections" 
+            :key="subCol"
+            class="flex items-center justify-between hover:bg-[#1d1f22] py-1 px-2 rounded transition-colors group text-xs cursor-pointer"
+            :style="{ paddingLeft: `${(depth + 2) * 16}px` }"
+            @click.stop="$emit('openSubcollection', subCol)"
+          >
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-amber-400">📁</span>
+              <span class="font-semibold text-amber-300 font-mono truncate">{{ subCol }}</span>
+              <span class="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">subcollection</span>
+            </div>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <UButton 
+                size="xs" 
+                color="warning" 
+                variant="ghost" 
+                type="button" 
+                @click.stop="$emit('openSubcollection', subCol)"
+              >
+                Browse
+              </UButton>
+              <UButton 
+                size="xs" 
+                color="neutral" 
+                variant="ghost" 
+                type="button" 
+                @click.stop="$emit('openSubcollectionInNewTab', subCol)"
+              >
+                New Tab
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -258,13 +339,26 @@ const props = defineProps({
   label: { type: String, required: true },
   value: { type: [String, Number, Boolean, Object, Array, null], default: null },
   depth: { type: Number, default: 0 },
-  isRoot: { type: Boolean, default: false }
+  isRoot: { type: Boolean, default: false },
+  subcollections: { type: Array, default: () => [] },
+  loadingSubcollections: { type: Boolean, default: false },
+  subcollectionsFetched: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['change', 'addField', 'deleteField', 'editJson', 'deleteDoc', 'openTab'])
+const emit = defineEmits([
+  'change', 'addField', 'deleteField', 'editJson', 'deleteDoc', 'openTab',
+  'fetchSubcollections', 'openSubcollection', 'openSubcollectionInNewTab'
+])
 
 const isOpen = ref(false)
 const isEditing = ref(false)
+
+function toggleExpand() {
+  isOpen.value = !isOpen.value
+  if (props.isRoot && isOpen.value && !props.subcollectionsFetched && !props.loadingSubcollections) {
+    emit('fetchSubcollections')
+  }
+}
 const editType = ref('string')
 const editValue = ref('')
 const inputRef = ref(null)
