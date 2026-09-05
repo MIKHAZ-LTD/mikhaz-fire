@@ -76,6 +76,7 @@
 .flame-gradient-text {
   background: linear-gradient(135deg, #fbbf24 0%, #f97316 50%, #f43f5e 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

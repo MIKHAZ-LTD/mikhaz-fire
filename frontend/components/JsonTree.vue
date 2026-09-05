@@ -2,7 +2,7 @@
   <div class="select-text font-mono text-xs">
     <!-- Row Element -->
     <div 
-      class="flex items-center hover:bg-white/[0.04] py-1.5 px-2 rounded-lg transition-colors group relative border border-transparent hover:border-white/[0.06]"
+      class="flex items-center hover:bg-white/4 py-1.5 px-2 rounded-lg transition-colors group relative border border-transparent hover:border-white/6"
       :style="{ paddingLeft: `${depth * 18}px` }"
     >
       <!-- Expand Arrow -->
@@ -250,7 +250,7 @@
         v-if="newFieldType === 'string'"
         v-model="newFieldValue"
         placeholder="Value"
-        class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-[120px] focus:border-amber-500"
+        class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-30 focus:border-amber-500"
         @keydown.enter.prevent.stop="saveAddField"
         @keydown.esc.prevent.stop="cancelAddField"
       />
@@ -275,7 +275,7 @@
         v-else-if="newFieldType === 'timestamp'"
         v-model="newFieldValue"
         placeholder="ISO Timestamp"
-        class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-[160px] focus:border-amber-500"
+        class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-40 focus:border-amber-500"
         @keydown.enter.prevent.stop="saveAddField"
         @keydown.esc.prevent.stop="cancelAddField"
       />
@@ -320,9 +320,9 @@
       </template>
 
       <!-- Subcollections Section for Document -->
-      <div v-if="isRoot" class="mt-2 pt-2 border-t border-white/[0.08]">
+      <div v-if="isRoot" class="mt-2 pt-2 border-t border-white/8">
         <div 
-          class="flex items-center justify-between hover:bg-white/[0.04] py-1 px-2 rounded transition-colors text-xs font-semibold text-amber-400 select-none"
+          class="flex items-center justify-between hover:bg-white/4 py-1 px-2 rounded transition-colors text-xs font-semibold text-amber-400 select-none"
           :style="{ paddingLeft: `${(depth + 1) * 18}px` }"
         >
           <div class="flex items-center gap-1.5">
@@ -357,7 +357,7 @@
           <div 
             v-for="subCol in subcollections" 
             :key="subCol"
-            class="flex items-center justify-between hover:bg-white/[0.04] py-1.5 px-2 rounded-lg transition-colors group text-xs cursor-pointer border border-transparent hover:border-amber-500/20"
+            class="flex items-center justify-between hover:bg-white/4 py-1.5 px-2 rounded-lg transition-colors group text-xs cursor-pointer border border-transparent hover:border-amber-500/20"
             :style="{ paddingLeft: `${(depth + 2) * 18}px` }"
             @click.stop="$emit('openSubcollection', subCol)"
           >

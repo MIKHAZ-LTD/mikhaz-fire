@@ -3,9 +3,9 @@
     <div class="h-screen w-screen flex overflow-hidden bg-[#090a0f] text-[#e2e8f0] font-sans antialiased select-none">
     
     <!-- Sidebar -->
-    <aside class="w-80 border-r border-white/[0.08] bg-[#0f1118] flex flex-col flex-shrink-0 z-20 shadow-xl">
+    <aside class="w-80 border-r border-white/8 bg-[#0f1118] flex flex-col shrink-0 z-20 shadow-xl">
       <!-- Sidebar Header (Full Row Stacking, No Squashed Words) -->
-      <div class="p-3.5 border-b border-white/[0.08] bg-[#141721]/60 backdrop-blur-md flex flex-col gap-3">
+      <div class="p-3.5 border-b border-white/8 bg-[#141721]/60 backdrop-blur-md flex flex-col gap-3">
         <!-- Row 1: Brand & Status -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
@@ -22,7 +22,7 @@
           </div>
 
           <!-- Status Indicator Dot -->
-          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06]" title="Engine Ready">
+          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/4 border border-white/6" title="Engine Ready">
             <span class="relative flex h-1.5 w-1.5">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
@@ -52,7 +52,7 @@
             variant="subtle"
             @click="showAddSaModal = true"
             title="Add Service Account Key JSON"
-            class="font-medium text-xs py-1.5 px-2.5 whitespace-nowrap bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border border-white/10"
+            class="font-medium text-xs py-1.5 px-2.5 whitespace-nowrap bg-white/4 hover:bg-white/8 text-zinc-300 border border-white/10"
           >
             Add Key
           </UButton>
@@ -60,7 +60,7 @@
       </div>
 
       <!-- Search & Filter Projects Bar -->
-      <div class="p-2.5 border-b border-white/[0.08] bg-[#0b0d13] space-y-2">
+      <div class="p-2.5 border-b border-white/8 bg-[#0b0d13] space-y-2">
         <div class="relative">
           <UInput
             v-model="sidebarProjectFilter"
@@ -206,8 +206,8 @@
                 </span>
                 <button
                   @click.stop="togglePinProject({ ...proj, email: acc.email })"
-                  class="text-zinc-600 group-hover/proj:text-zinc-400 hover:!text-amber-400 text-xs transition-colors p-0.5"
-                  :class="isPinned(proj.projectId) ? '!text-amber-400' : ''"
+                  class="text-zinc-600 group-hover/proj:text-zinc-400 hover:text-amber-400! text-xs transition-colors p-0.5"
+                  :class="isPinned(proj.projectId) ? 'text-amber-400!' : ''"
                   :title="isPinned(proj.projectId) ? 'Unpin project' : 'Pin project to top'"
                 >
                   ★
@@ -244,7 +244,7 @@
       </div>
 
       <!-- Sidebar Footer -->
-      <div class="p-3 bg-[#0b0d13] border-t border-white/[0.08] flex items-center justify-between text-xs text-zinc-400">
+      <div class="p-3 bg-[#0b0d13] border-t border-white/8 flex items-center justify-between text-xs text-zinc-400">
         <div class="flex items-center gap-2">
           <span class="relative flex h-2 w-2">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -265,14 +265,14 @@
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col overflow-hidden bg-[#090a0f]">
       <!-- Tabs Bar -->
-      <div class="h-11 bg-[#0f1118] border-b border-white/[0.08] flex items-center overflow-x-auto select-none scrollbar-none px-2 gap-1.5 z-10">
+      <div class="h-11 bg-[#0f1118] border-b border-white/8 flex items-center overflow-x-auto select-none scrollbar-none px-2 gap-1.5 z-10">
         <!-- Welcome Tab -->
         <div 
           v-if="showWelcomeTab"
           class="px-3 py-1.5 h-8 flex items-center gap-2 text-xs rounded-lg cursor-pointer transition-all border"
           :class="activeTabId === 'welcome' 
             ? 'bg-[#181b26] text-white font-semibold border-amber-500/30 shadow-sm' 
-            : 'hover:bg-white/[0.04] text-zinc-400 border-transparent'"
+            : 'hover:bg-white/4 text-zinc-400 border-transparent'"
           @click="activeTabId = 'welcome'"
         >
           <span class="text-amber-400 text-xs">🏠</span>
@@ -289,10 +289,10 @@
         <div 
           v-for="tab in openTabs" 
           :key="tab.id"
-          class="px-3 py-1.5 h-8 flex items-center gap-2 text-xs rounded-lg cursor-pointer transition-all border max-w-[240px] shrink-0"
+          class="px-3 py-1.5 h-8 flex items-center gap-2 text-xs rounded-lg cursor-pointer transition-all border max-w-60 shrink-0"
           :class="activeTabId === tab.id 
             ? 'bg-[#181b26] text-white font-semibold border-amber-500/40 shadow-sm' 
-            : 'hover:bg-white/[0.04] text-zinc-400 border-transparent'"
+            : 'hover:bg-white/4 text-zinc-400 border-transparent'"
           @click="activeTabId = tab.id"
         >
           <span class="text-xs shrink-0">
@@ -315,7 +315,7 @@
         <!-- Welcome Screen -->
         <div v-if="activeTabId === 'welcome'" class="h-full overflow-y-auto p-8 flex flex-col justify-center items-center text-center max-w-4xl mx-auto space-y-6">
           <div class="relative">
-            <div class="absolute -inset-4 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
+            <div class="absolute -inset-4 bg-linear-to-r from-amber-500 to-orange-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
             <img src="/logo.svg" class="w-20 h-20 relative drop-shadow-[0_0_25px_rgba(245,158,11,0.3)] object-contain" alt="Logo" />
           </div>
 
@@ -381,7 +381,7 @@
           <!-- Auth Component -->
           <div v-if="tab.type === 'auth'" class="h-full flex flex-col overflow-hidden p-5 space-y-4">
             <!-- Header & Action Bar -->
-            <div class="flex items-center justify-between bg-[#0f1118] p-4 rounded-xl border border-white/[0.08] shadow-sm">
+            <div class="flex items-center justify-between bg-[#0f1118] p-4 rounded-xl border border-white/8 shadow-sm">
               <div class="space-y-0.5">
                 <div class="flex items-center gap-2">
                   <span class="text-lg">👥</span>
@@ -428,7 +428,7 @@
 
             <!-- Metric Summary Stats Cards -->
             <div class="grid grid-cols-4 gap-3">
-              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+              <div class="p-3 bg-[#141721] border border-white/8 rounded-xl flex items-center justify-between">
                 <div>
                   <div class="text-[10px] uppercase font-semibold text-zinc-400">Total Loaded</div>
                   <div class="text-xl font-extrabold text-white mt-0.5">{{ tab.users ? tab.users.length : 0 }}</div>
@@ -436,7 +436,7 @@
                 <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">👥</div>
               </div>
 
-              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+              <div class="p-3 bg-[#141721] border border-white/8 rounded-xl flex items-center justify-between">
                 <div>
                   <div class="text-[10px] uppercase font-semibold text-zinc-400">Active Accounts</div>
                   <div class="text-xl font-extrabold text-emerald-400 mt-0.5">
@@ -446,7 +446,7 @@
                 <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">✓</div>
               </div>
 
-              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+              <div class="p-3 bg-[#141721] border border-white/8 rounded-xl flex items-center justify-between">
                 <div>
                   <div class="text-[10px] uppercase font-semibold text-zinc-400">Disabled</div>
                   <div class="text-xl font-extrabold text-rose-400 mt-0.5">
@@ -456,7 +456,7 @@
                 <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">🚫</div>
               </div>
 
-              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+              <div class="p-3 bg-[#141721] border border-white/8 rounded-xl flex items-center justify-between">
                 <div>
                   <div class="text-[10px] uppercase font-semibold text-zinc-400">Custom Claims</div>
                   <div class="text-xl font-extrabold text-purple-400 mt-0.5">
@@ -468,7 +468,7 @@
             </div>
 
             <!-- Unified Search and Filter Bar -->
-            <div class="flex items-center gap-3 bg-[#141721] p-2.5 rounded-xl border border-white/[0.08]">
+            <div class="flex items-center gap-3 bg-[#141721] p-2.5 rounded-xl border border-white/8">
               <div class="flex-1 relative">
                 <UInput
                   v-model="tab.searchQuery"
@@ -501,11 +501,11 @@
             </div>
 
             <!-- Users Table -->
-            <div class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl overflow-hidden flex flex-col shadow-md min-h-0">
+            <div class="flex-1 border border-white/8 bg-[#0f1118] rounded-xl overflow-hidden flex flex-col shadow-md min-h-0">
               <div class="flex-1 overflow-auto">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr class="bg-[#141721] text-zinc-300 border-b border-white/[0.08] font-semibold select-none sticky top-0 z-10 backdrop-blur">
+                    <tr class="bg-[#141721] text-zinc-300 border-b border-white/8 font-semibold select-none sticky top-0 z-10 backdrop-blur">
                       <th class="p-3 w-12 text-center">#</th>
                       <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'uid')">
                         UID
@@ -553,7 +553,7 @@
                       v-else 
                       v-for="(user, idx) in getFilteredSortedUsers(tab)" 
                       :key="user.uid" 
-                      class="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors group/row"
+                      class="border-b border-white/4 hover:bg-white/3 transition-colors group/row"
                     >
                       <!-- Index & Avatar -->
                       <td class="p-3 text-center text-zinc-500 text-[11px] font-mono">
@@ -563,7 +563,7 @@
                       <!-- UID with 1-click Copy -->
                       <td class="p-3 font-mono text-[11px] text-amber-400">
                         <div class="flex items-center gap-1.5">
-                          <span class="truncate max-w-[130px]" :title="user.uid">{{ user.uid }}</span>
+                          <span class="truncate max-w-32.5" :title="user.uid">{{ user.uid }}</span>
                           <button
                             type="button"
                             class="opacity-0 group-hover/row:opacity-100 text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-opacity"
@@ -578,10 +578,10 @@
                       <!-- Email with Avatar -->
                       <td class="p-3">
                         <div class="flex items-center gap-2 min-w-0">
-                          <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                          <div class="w-6 h-6 rounded-full bg-linear-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
                             {{ getUserInitial(user) }}
                           </div>
-                          <div class="truncate max-w-[180px]">
+                          <div class="truncate max-w-45">
                             <span class="font-medium text-white truncate" :title="user.email">{{ user.email || 'Anonymous' }}</span>
                           </div>
                           <button
@@ -597,7 +597,7 @@
                       </td>
 
                       <!-- Display Name -->
-                      <td class="p-3 text-zinc-300 truncate max-w-[140px]" :title="user.displayName">
+                      <td class="p-3 text-zinc-300 truncate max-w-35" :title="user.displayName">
                         {{ user.displayName || '-' }}
                       </td>
 
@@ -647,7 +647,7 @@
               </div>
 
               <!-- Pagination / Next Page -->
-              <div v-if="tab.nextPageToken" class="p-3 bg-[#141721] border-t border-white/[0.08] flex justify-between items-center text-xs">
+              <div v-if="tab.nextPageToken" class="p-3 bg-[#141721] border-t border-white/8 flex justify-between items-center text-xs">
                 <span class="text-zinc-400 font-mono text-[11px]">More users available on server</span>
                 <UButton size="xs" color="warning" @click="fetchAuthUsersNext(tab)">
                   Load More Users
@@ -661,11 +661,11 @@
             <!-- Left Pane: Collections Explorer with Search Filter -->
             <!-- Left Pane: Collections Explorer with Search Filter -->
             <div 
-              class="border-r border-white/[0.08] bg-[#0f1118] flex flex-col flex-shrink-0 transition-all duration-200"
+              class="border-r border-white/8 bg-[#0f1118] flex flex-col shrink-0 transition-all duration-200"
               :class="tab.collectionsCollapsed ? 'w-11' : 'w-64'"
             >
               <!-- Collections Header -->
-              <div class="p-2.5 border-b border-white/[0.08] flex items-center justify-between bg-[#141721]/60">
+              <div class="p-2.5 border-b border-white/8 flex items-center justify-between bg-[#141721]/60">
                 <div v-if="!tab.collectionsCollapsed" class="flex items-center gap-1.5 min-w-0">
                   <span class="text-amber-400 text-sm shrink-0">🗄️</span>
                   <h3 class="font-bold text-xs uppercase tracking-wider text-white truncate">Collections</h3>
@@ -707,7 +707,7 @@
 
               <template v-else>
                 <!-- Collection Search Input -->
-                <div class="p-2 border-b border-white/[0.08] bg-[#0b0d13]">
+                <div class="p-2 border-b border-white/8 bg-[#0b0d13]">
                   <UInput
                     v-model="tab.collectionSearch"
                     placeholder="Filter collections..."
@@ -733,7 +733,7 @@
                     class="p-2 rounded-lg text-xs font-semibold cursor-pointer text-zinc-300 flex justify-between items-center transition-all border"
                     :class="tab.activeCollection === col 
                       ? 'bg-[#191c28] border-amber-500/40 text-amber-300 shadow-sm' 
-                      : 'hover:bg-white/[0.04] border-transparent hover:text-white'"
+                      : 'hover:bg-white/4 border-transparent hover:text-white'"
                     @click="selectCollection(tab, col)"
                   >
                     <div class="flex items-center gap-2 truncate">
@@ -755,7 +755,7 @@
             <!-- Right Pane: Document Viewer / Editor / JS Queries -->
             <div class="flex-1 flex flex-col overflow-hidden bg-[#090a0f]">
               <!-- Breadcrumb Header -->
-              <div class="p-3.5 border-b border-white/[0.08] bg-[#0f1118] flex justify-between items-center shadow-sm">
+              <div class="p-3.5 border-b border-white/8 bg-[#0f1118] flex justify-between items-center shadow-sm">
                 <div class="flex items-center gap-2 flex-wrap min-w-0">
                   <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                     <span>⚡</span> {{ tab.firestoreView || 'Explorer' }}
@@ -802,7 +802,7 @@
                   <div v-else class="flex-1 flex flex-col space-y-3 min-h-0">
                     
                     <!-- Collapsible Query Builder Panel -->
-                    <div class="border border-white/[0.08] bg-[#0f1118] rounded-xl p-3.5 space-y-3 flex flex-col shadow-sm">
+                    <div class="border border-white/8 bg-[#0f1118] rounded-xl p-3.5 space-y-3 flex flex-col shadow-sm">
                       <div class="flex items-center justify-between cursor-pointer select-none" @click="tab.queryExpanded = !tab.queryExpanded">
                         <div class="flex items-center gap-2">
                           <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -925,7 +925,7 @@
                             <!-- Console Output -->
                             <div class="flex flex-col space-y-1">
                               <label class="text-[10px] font-semibold text-zinc-400">Query Output Logs</label>
-                              <pre class="flex-1 font-mono text-[10px] text-emerald-400 overflow-auto bg-[#090a0f] p-3 rounded-lg border border-white/10 whitespace-pre-wrap min-h-[160px]">{{ tab.queryOutput || 'No output yet.' }}</pre>
+                              <pre class="flex-1 font-mono text-[10px] text-emerald-400 overflow-auto bg-[#090a0f] p-3 rounded-lg border border-white/10 whitespace-pre-wrap min-h-40">{{ tab.queryOutput || 'No output yet.' }}</pre>
                             </div>
                           </div>
                         </div>
@@ -935,8 +935,8 @@
                     <!-- Results Section (Table / Tree / JSON) -->
                     <div class="flex-1 flex flex-col space-y-2 min-h-0">
                       <!-- Results Navigation Tabs and Selection Toolbar -->
-                      <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
-                        <div class="flex items-center gap-1 bg-[#141721] p-1 rounded-lg border border-white/[0.08]">
+                      <div class="flex items-center justify-between border-b border-white/8 pb-2">
+                        <div class="flex items-center gap-1 bg-[#141721] p-1 rounded-lg border border-white/8">
                           <button 
                             type="button"
                             class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
@@ -1002,8 +1002,8 @@
                       </div>
 
                       <!-- Tree Viewer -->
-                      <div v-if="tab.resultsView === 'tree'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl p-4 overflow-y-auto flex flex-col gap-2 min-h-0 shadow-inner">
-                        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/[0.08]">
+                      <div v-if="tab.resultsView === 'tree'" class="flex-1 border border-white/8 bg-[#0f1118] rounded-xl p-4 overflow-y-auto flex flex-col gap-2 min-h-0 shadow-inner">
+                        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/8">
                           <input 
                             type="checkbox" 
                             :checked="tab.selectedDocNames && tab.selectedDocNames.length === tab.documents.length && tab.documents.length > 0"
@@ -1021,7 +1021,7 @@
                           No documents found in this collection.
                         </div>
                         <div v-else class="space-y-2">
-                          <div v-for="doc in tab.documents" :key="doc.name" class="border border-white/[0.06] hover:border-amber-500/30 rounded-xl p-2.5 bg-[#141721]/60 flex items-start gap-3 transition-all">
+                          <div v-for="doc in tab.documents" :key="doc.name" class="border border-white/6 hover:border-amber-500/30 rounded-xl p-2.5 bg-[#141721]/60 flex items-start gap-3 transition-all">
                             <input 
                               type="checkbox" 
                               :checked="tab.selectedDocNames && tab.selectedDocNames.includes(doc.name)"
@@ -1052,11 +1052,11 @@
                       </div>
 
                       <!-- Table Viewer -->
-                      <div v-else-if="tab.resultsView === 'table'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl overflow-hidden flex flex-col min-h-0 shadow-md">
+                      <div v-else-if="tab.resultsView === 'table'" class="flex-1 border border-white/8 bg-[#0f1118] rounded-xl overflow-hidden flex flex-col min-h-0 shadow-md">
                         <div class="flex-1 overflow-auto">
                           <table class="w-full text-left border-collapse text-xs">
                             <thead>
-                              <tr class="bg-[#141721] text-zinc-300 border-b border-white/[0.08] font-semibold select-none sticky top-0 z-10 backdrop-blur">
+                              <tr class="bg-[#141721] text-zinc-300 border-b border-white/8 font-semibold select-none sticky top-0 z-10 backdrop-blur">
                                 <th class="p-3 w-10 text-center">
                                   <input 
                                     type="checkbox" 
@@ -1084,7 +1084,7 @@
                                 v-else 
                                 v-for="doc in tab.documents" 
                                 :key="doc.name" 
-                                class="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors cursor-pointer group/row"
+                                class="border-b border-white/4 hover:bg-white/3 transition-colors cursor-pointer group/row"
                                 @click="toggleSelectDoc(tab, doc.name)"
                               >
                                 <td class="p-3 text-center" @click.stop>
@@ -1097,7 +1097,7 @@
                                 </td>
                                 <td class="p-3 font-mono font-semibold text-amber-400">
                                   <div class="flex items-center gap-1.5">
-                                    <span class="truncate max-w-[140px] cursor-pointer hover:underline" :title="getDocId(doc.name)" @click.stop="openDocInNewTab(tab, doc)">
+                                    <span class="truncate max-w-35 cursor-pointer hover:underline" :title="getDocId(doc.name)" @click.stop="openDocInNewTab(tab, doc)">
                                       {{ getDocId(doc.name) }}
                                     </span>
                                     <button
@@ -1110,7 +1110,7 @@
                                     </button>
                                   </div>
                                 </td>
-                                <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[11px] text-zinc-400 truncate max-w-[150px]">
+                                <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[11px] text-zinc-400 truncate max-w-37.5">
                                   {{ getColumnValue(doc, col) }}
                                 </td>
                                 <td class="p-3 text-right space-x-1 whitespace-nowrap" @click.stop>
@@ -1151,15 +1151,15 @@
                       </div>
 
                       <!-- JSON Viewer -->
-                      <div v-else-if="tab.resultsView === 'json'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl p-4 overflow-hidden flex flex-col min-h-0 shadow-inner">
+                      <div v-else-if="tab.resultsView === 'json'" class="flex-1 border border-white/8 bg-[#0f1118] rounded-xl p-4 overflow-hidden flex flex-col min-h-0 shadow-inner">
                         <textarea 
-                          class="flex-grow flex-1 w-full h-full bg-[#090a0f] text-zinc-300 font-mono text-xs p-3 rounded-lg border border-white/10 resize-none outline-none select-text min-h-0" 
+                          class="grow flex-1 w-full h-full bg-[#090a0f] text-zinc-300 font-mono text-xs p-3 rounded-lg border border-white/10 resize-none outline-none select-text min-h-0" 
                           readonly
                         >{{ formatAllDocsJson(tab.documents) }}</textarea>
                       </div>
 
                       <!-- Load More Button -->
-                      <div v-if="tab.nextDocPageToken" class="p-3 bg-[#141721] border-t border-white/[0.08] flex justify-end rounded-b-xl">
+                      <div v-if="tab.nextDocPageToken" class="p-3 bg-[#141721] border-t border-white/8 flex justify-end rounded-b-xl">
                         <UButton size="xs" color="warning" @click="fetchDocumentsNext(tab)">
                           Load More Documents
                         </UButton>
@@ -1416,7 +1416,7 @@
 
           <template #footer>
             <div class="flex justify-between items-center w-full">
-              <div class="text-[11px] text-zinc-500 truncate max-w-[200px]">
+              <div class="text-[11px] text-zinc-500 truncate max-w-50">
                 Custom claims & hashes preserved.
               </div>
               <div class="flex items-center gap-2 whitespace-nowrap">
@@ -1544,7 +1544,7 @@
 
           <template #footer>
             <div class="flex justify-between items-center w-full">
-              <div class="text-[11px] text-zinc-500 truncate max-w-[200px]">
+              <div class="text-[11px] text-zinc-500 truncate max-w-50">
                 Target: {{ activeTabContext?.projectId || '' }}
               </div>
               <div class="flex items-center gap-2 whitespace-nowrap">
@@ -1572,7 +1572,7 @@
     <!-- Modal: Document Details JSON Viewer/Editor -->
     <UModal v-model:open="showDocModal" :dismissible="false" fullscreen :ui="{ content: 'h-full flex flex-col bg-[#090a0f]' }">
       <template #content>
-        <UCard :ui="{ root: 'h-full flex flex-col bg-[#090a0f] border border-white/10', body: 'flex-grow overflow-hidden flex flex-col h-full min-h-0' }">
+        <UCard :ui="{ root: 'h-full flex flex-col bg-[#090a0f] border border-white/10', body: 'grow overflow-hidden flex flex-col h-full min-h-0' }">
           <template #header>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -1583,7 +1583,7 @@
             </div>
           </template>
 
-          <div class="space-y-3 p-4 text-xs flex flex-col flex-grow flex-1 h-full min-h-0 bg-[#090a0f]">
+          <div class="space-y-3 p-4 text-xs flex flex-col grow flex-1 h-full min-h-0 bg-[#090a0f]">
             <div class="bg-[#141721] p-2.5 rounded-lg border border-white/10 text-zinc-300 flex items-center justify-between">
               <div>Path: <strong class="text-amber-400 font-mono">{{ activeDocPath }}</strong></div>
               <UButton size="2xs" color="neutral" variant="subtle" @click="formatActiveDocJson">Beautify JSON</UButton>
@@ -1796,7 +1796,7 @@
 
           <div class="space-y-3 p-2 text-xs">
             <div 
-              class="bg-[#090a0f] text-zinc-200 border border-white/10 font-mono text-[11px] p-4 rounded-xl overflow-auto select-text max-h-[350px] whitespace-pre-wrap break-all"
+              class="bg-[#090a0f] text-zinc-200 border border-white/10 font-mono text-[11px] p-4 rounded-xl overflow-auto select-text max-h-87.5 whitespace-pre-wrap break-all"
             >
               {{ notificationModalMessage }}
             </div>
