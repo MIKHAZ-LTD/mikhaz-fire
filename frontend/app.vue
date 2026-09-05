@@ -1,16 +1,38 @@
 <template>
   <UApp>
-    <div class="h-screen w-screen flex overflow-hidden bg-[#0c0d0e] text-[#e3e6e8] font-sans antialiased select-none">
+    <div class="h-screen w-screen flex overflow-hidden bg-[#090a0f] text-[#e2e8f0] font-sans antialiased select-none">
     
     <!-- Sidebar -->
-    <aside class="w-80 border-r border-[#2a2d31] bg-[#121315] flex flex-col flex-shrink-0">
-      <!-- Sidebar Header -->
-      <div class="p-4 border-b border-[#2a2d31] flex items-center justify-between">
-        <div>
-          <h1 class="text-sm font-bold text-white tracking-wide">Mikhaz Fire</h1>
-          <p class="text-[10px] text-[#9da5ac]">Auth & Firestore Controller</p>
+    <aside class="w-80 border-r border-white/[0.08] bg-[#0f1118] flex flex-col flex-shrink-0 z-20 shadow-xl">
+      <!-- Sidebar Header (Full Row Stacking, No Squashed Words) -->
+      <div class="p-3.5 border-b border-white/[0.08] bg-[#141721]/60 backdrop-blur-md flex flex-col gap-3">
+        <!-- Row 1: Brand & Status -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl flame-gradient flex items-center justify-center shadow-lg shadow-amber-500/20 text-white font-bold text-base shrink-0">
+              🔥
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h1 class="text-sm font-bold text-white tracking-wide">Mikhaz Fire</h1>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono border border-amber-500/30 font-semibold">v1.1</span>
+              </div>
+              <p class="text-[10px] text-zinc-400 font-medium">Auth &amp; Firestore Controller</p>
+            </div>
+          </div>
+
+          <!-- Status Indicator Dot -->
+          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06]" title="Engine Ready">
+            <span class="relative flex h-1.5 w-1.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+            </span>
+            <span class="text-[10px] font-mono text-zinc-400">Ready</span>
+          </div>
         </div>
-        <div class="flex items-center gap-1.5">
+
+        <!-- Row 2: Action Buttons (Proper Full Row Stacking, No Squashed Words) -->
+        <div class="flex items-center gap-2">
           <UButton
             icon="i-heroicons-user-plus"
             size="xs"
@@ -19,6 +41,7 @@
             :loading="loggingInGoogle"
             @click="triggerGoogleLogin"
             title="Sign in with Google Account in Browser"
+            class="flex-1 justify-center font-semibold text-xs py-1.5 whitespace-nowrap"
           >
             Google Sign In
           </UButton>
@@ -26,85 +49,190 @@
             icon="i-heroicons-key"
             size="xs"
             color="neutral"
-            variant="ghost"
+            variant="subtle"
             @click="showAddSaModal = true"
             title="Add Service Account Key JSON"
-          />
+            class="font-medium text-xs py-1.5 px-2.5 whitespace-nowrap bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border border-white/10"
+          >
+            Add Key
+          </UButton>
         </div>
       </div>
 
-      <!-- Accounts Scan Status -->
-      <div class="px-4 py-2 bg-[#16181a] text-xs text-[#9da5ac] flex items-center justify-between border-b border-[#2a2d31]">
-        <span>Accounts Discovered: {{ accounts.length }}</span>
-        <UButton
-          size="xs"
-          variant="link"
-          color="neutral"
-          class="p-0 text-amber-500 hover:text-amber-400"
-          @click="refreshAccounts"
-          :loading="scanning"
-        >
-          Rescan
-        </UButton>
+      <!-- Search & Filter Projects Bar -->
+      <div class="p-2.5 border-b border-white/[0.08] bg-[#0b0d13] space-y-2">
+        <div class="relative">
+          <UInput
+            v-model="sidebarProjectFilter"
+            placeholder="Search projects..."
+            icon="i-heroicons-magnifying-glass"
+            size="xs"
+            class="w-full bg-[#141721] text-xs border-white/10"
+            :ui="{ icon: { trailing: { pointer: '' } } }"
+          >
+            <template #trailing v-if="sidebarProjectFilter">
+              <UButton
+                color="neutral"
+                variant="link"
+                size="2xs"
+                icon="i-heroicons-x-mark"
+                class="text-zinc-400 hover:text-white"
+                @click="sidebarProjectFilter = ''"
+              />
+            </template>
+          </UInput>
+        </div>
+
+        <!-- Accounts & Rescan Bar -->
+        <div class="flex items-center justify-between text-[11px] text-zinc-400 px-1">
+          <span class="flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>Accounts: {{ accounts.length }}</span>
+          </span>
+          <UButton
+            size="2xs"
+            variant="ghost"
+            color="warning"
+            class="text-[11px] px-1 py-0.5 text-amber-400 hover:text-amber-300 font-medium"
+            @click="refreshAccounts"
+            :loading="scanning"
+          >
+            ↻ Rescan
+          </UButton>
+        </div>
       </div>
 
       <!-- Accounts / Projects List -->
-      <div class="flex-1 overflow-y-auto p-2 space-y-1">
-        <div v-if="accounts.length === 0" class="text-xs text-[#9da5ac] p-4 text-center space-y-3">
-          <p>No Google or Service Accounts connected.</p>
-          <UButton size="xs" color="warning" icon="i-heroicons-user-plus" class="mx-auto" @click="triggerGoogleLogin" :loading="loggingInGoogle">
+      <div class="flex-1 overflow-y-auto p-2 space-y-2">
+        <!-- Pinned / Favorite Projects Section -->
+        <div v-if="pinnedProjects.length > 0 && !sidebarProjectFilter" class="space-y-1 mb-3">
+          <div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80 flex items-center justify-between">
+            <span class="flex items-center gap-1">⭐ Pinned Projects</span>
+            <span class="text-[9px] text-zinc-500 font-mono">{{ pinnedProjects.length }}</span>
+          </div>
+          <div 
+            v-for="pin in pinnedProjects" 
+            :key="pin.projectId"
+            class="group/pin p-2 rounded-lg bg-[#141721] border border-amber-500/20 hover:border-amber-500/40 text-xs transition-all shadow-sm"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5 truncate">
+                <span class="text-amber-400 text-xs">🔥</span>
+                <span class="font-semibold text-white truncate" :title="pin.displayName">{{ pin.displayName || pin.projectId }}</span>
+              </div>
+              <button 
+                @click.stop="togglePinProject(pin)" 
+                class="text-amber-400 hover:text-amber-300 text-xs p-0.5" 
+                title="Unpin project"
+              >
+                ★
+              </button>
+            </div>
+            <div class="text-[10px] text-zinc-400 font-mono truncate mt-0.5">{{ pin.projectId }}</div>
+            <div class="flex gap-1.5 mt-2">
+              <UButton
+                size="2xs"
+                color="warning"
+                variant="subtle"
+                class="text-[10px] py-0.5 flex-1 justify-center font-medium"
+                icon="i-heroicons-user-group"
+                @click.stop="openTab('auth', pin.email, pin.projectId)"
+              >
+                Auth
+              </UButton>
+              <UButton
+                size="2xs"
+                color="warning"
+                variant="subtle"
+                class="text-[10px] py-0.5 flex-1 justify-center font-medium"
+                icon="i-heroicons-circle-stack"
+                @click.stop="openTab('firestore', pin.email, pin.projectId)"
+              >
+                Firestore
+              </UButton>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="accounts.length === 0" class="text-xs text-zinc-400 p-6 text-center space-y-3 bg-[#141721]/50 rounded-xl border border-white/5 m-2">
+          <div class="w-10 h-10 rounded-full bg-amber-500/10 text-amber-400 mx-auto flex items-center justify-center text-lg">
+            🔑
+          </div>
+          <p class="font-medium text-white text-sm">No Accounts Connected</p>
+          <p class="text-[11px] text-zinc-400 leading-relaxed">Connect a Google account or upload a Service Account JSON to inspect your Firebase databases.</p>
+          <UButton size="xs" color="warning" icon="i-heroicons-user-plus" class="mx-auto font-medium" @click="triggerGoogleLogin" :loading="loggingInGoogle">
             Sign In with Google
           </UButton>
-          <div class="text-[11px] text-[#606870]">Or add a Service Account JSON key</div>
         </div>
         
-        <div v-for="acc in accounts" :key="acc.email" class="space-y-1">
+        <div v-for="acc in filteredAccounts" :key="acc.email" class="space-y-1">
           <!-- Account Item Header -->
           <div 
-            class="flex items-center justify-between p-2 rounded-md cursor-pointer text-sm transition-colors"
-            :class="expandedAccount === acc.email ? 'bg-[#1d1f22] text-white' : 'hover:bg-[#1d1f22] text-[#9da5ac]'"
+            class="flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-all border"
+            :class="expandedAccount === acc.email 
+              ? 'bg-[#181b26] border-amber-500/30 text-white shadow-sm' 
+              : 'hover:bg-[#141721] border-transparent text-zinc-300 hover:text-white'"
             @click="toggleAccount(acc.email)"
           >
             <div class="flex items-center gap-2 truncate">
-              <span class="text-sm transform transition-transform" :class="expandedAccount === acc.email ? 'rotate-90' : ''">&#9656;</span>
-              <span class="truncate font-medium" :title="acc.email">{{ acc.email }}</span>
+              <span class="text-xs transform transition-transform duration-150 text-zinc-400" :class="expandedAccount === acc.email ? 'rotate-90 text-amber-400' : ''">
+                ▸
+              </span>
+              <span class="truncate font-semibold tracking-tight" :title="acc.email">{{ acc.email }}</span>
             </div>
-            <UBadge size="sm" color="warning" variant="subtle" class="text-[10px] px-1.5 py-0.5">
+            <UBadge size="xs" color="warning" variant="subtle" class="text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-wider shrink-0">
               {{ acc.is_service_account ? 'SA' : acc.source }}
             </UBadge>
           </div>
 
           <!-- Projects List for Expanded Account -->
-          <div v-if="expandedAccount === acc.email" class="pl-4 pr-1 space-y-1">
-            <div v-if="loadingProjects" class="text-xs text-[#606870] py-2 pl-3">Loading projects...</div>
-            <div v-else-if="projects.length === 0" class="text-xs text-[#606870] py-2 pl-3">No projects found.</div>
+          <div v-if="expandedAccount === acc.email" class="pl-3 pr-1 py-1 space-y-1 border-l-2 border-amber-500/30 ml-2">
+            <div v-if="loadingProjects" class="text-xs text-zinc-400 py-3 pl-2 flex items-center gap-2">
+              <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin text-amber-400" />
+              <span>Loading projects...</span>
+            </div>
+            <div v-else-if="filteredProjects.length === 0" class="text-xs text-zinc-400 py-3 pl-2 italic">
+              {{ sidebarProjectFilter ? 'No matching projects.' : 'No projects found.' }}
+            </div>
             
             <div 
-              v-for="proj in projects" 
+              v-for="proj in filteredProjects" 
               :key="proj.projectId" 
-              class="group/proj p-2 rounded-md hover:bg-[#1d1f22] text-xs text-[#9da5ac] flex flex-col gap-1 cursor-pointer transition-colors"
+              class="group/proj p-2 rounded-lg hover:bg-[#181b26] text-xs text-zinc-300 flex flex-col gap-1 cursor-pointer transition-all border border-transparent hover:border-white/10 hover:shadow-md"
             >
               <div class="flex items-center justify-between">
-                <span class="font-semibold text-white truncate" :title="proj.displayName">{{ proj.displayName || proj.projectId }}</span>
+                <span class="font-semibold text-white truncate text-xs" :title="proj.displayName">
+                  {{ proj.displayName || proj.projectId }}
+                </span>
+                <button
+                  @click.stop="togglePinProject({ ...proj, email: acc.email })"
+                  class="text-zinc-600 group-hover/proj:text-zinc-400 hover:!text-amber-400 text-xs transition-colors p-0.5"
+                  :class="isPinned(proj.projectId) ? '!text-amber-400' : ''"
+                  :title="isPinned(proj.projectId) ? 'Unpin project' : 'Pin project to top'"
+                >
+                  ★
+                </button>
               </div>
-              <span class="text-[10px] text-[#606870] truncate">{{ proj.projectId }}</span>
+              <span class="text-[10px] text-zinc-400 font-mono truncate">{{ proj.projectId }}</span>
               
               <!-- Quick Action Options on Hover -->
-              <div class="flex gap-2 mt-1 opacity-0 group-hover/proj:opacity-100 transition-opacity">
+              <div class="flex gap-1.5 mt-1 opacity-0 group-hover/proj:opacity-100 transition-opacity">
                 <UButton
-                  size="xs"
+                  size="2xs"
                   color="warning"
                   variant="subtle"
-                  class="text-[10px] py-0.5"
+                  class="text-[10px] py-0.5 flex-1 justify-center font-medium"
+                  icon="i-heroicons-user-group"
                   @click.stop="openTab('auth', acc.email, proj.projectId)"
                 >
                   Auth
                 </UButton>
                 <UButton
-                  size="xs"
+                  size="2xs"
                   color="warning"
                   variant="subtle"
-                  class="text-[10px] py-0.5"
+                  class="text-[10px] py-0.5 flex-1 justify-center font-medium"
+                  icon="i-heroicons-circle-stack"
                   @click.stop="openTab('firestore', acc.email, proj.projectId)"
                 >
                   Firestore
@@ -116,32 +244,44 @@
       </div>
 
       <!-- Sidebar Footer -->
-      <div class="p-4 bg-[#0c0d0e] border-t border-[#2a2d31] flex items-center justify-between text-xs text-[#606870]">
-        <div class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Desktop Mode</span>
+      <div class="p-3 bg-[#0b0d13] border-t border-white/[0.08] flex items-center justify-between text-xs text-zinc-400">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-[11px] font-medium text-zinc-300">Local Engine Ready</span>
         </div>
-        <span>v1.0.0</span>
+        <button 
+          class="text-[10px] font-mono text-zinc-400 hover:text-amber-400 transition-colors"
+          @click="reopenWelcomeTab"
+          title="Open Welcome Dashboard"
+        >
+          Overview ↗
+        </button>
       </div>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col overflow-hidden">
+    <main class="flex-1 flex flex-col overflow-hidden bg-[#090a0f]">
       <!-- Tabs Bar -->
-      <div class="h-11 bg-[#121315] border-b border-[#2a2d31] flex items-center overflow-x-auto select-none scrollbar-none">
+      <div class="h-11 bg-[#0f1118] border-b border-white/[0.08] flex items-center overflow-x-auto select-none scrollbar-none px-2 gap-1.5 z-10">
         <!-- Welcome Tab -->
         <div 
           v-if="showWelcomeTab"
-          class="px-4 h-full flex items-center gap-2 text-xs border-r border-[#2a2d31] cursor-pointer transition-colors group"
-          :class="activeTabId === 'welcome' ? 'bg-[#0c0d0e] text-white font-medium border-t-2 border-t-amber-500' : 'hover:bg-[#1d1f22] text-[#9da5ac]'"
+          class="px-3 py-1.5 h-8 flex items-center gap-2 text-xs rounded-lg cursor-pointer transition-all border"
+          :class="activeTabId === 'welcome' 
+            ? 'bg-[#181b26] text-white font-semibold border-amber-500/30 shadow-sm' 
+            : 'hover:bg-white/[0.04] text-zinc-400 border-transparent'"
           @click="activeTabId = 'welcome'"
         >
+          <span class="text-amber-400 text-xs">🏠</span>
           <span>Welcome</span>
           <span 
-            class="text-[#606870] hover:text-white rounded-full p-0.5 leading-none transition-colors"
+            class="text-zinc-500 hover:text-white rounded p-0.5 leading-none transition-colors text-xs"
             @click.stop="closeWelcomeTab"
           >
-            &times;
+            ✕
           </span>
         </div>
 
@@ -149,16 +289,23 @@
         <div 
           v-for="tab in openTabs" 
           :key="tab.id"
-          class="px-3 h-full flex items-center gap-2 text-xs border-r border-[#2a2d31] cursor-pointer transition-colors group"
-          :class="activeTabId === tab.id ? 'bg-[#0c0d0e] text-white font-medium border-t-2 border-t-amber-500' : 'hover:bg-[#1d1f22] text-[#9da5ac]'"
+          class="px-3 py-1.5 h-8 flex items-center gap-2 text-xs rounded-lg cursor-pointer transition-all border max-w-[240px] shrink-0"
+          :class="activeTabId === tab.id 
+            ? 'bg-[#181b26] text-white font-semibold border-amber-500/40 shadow-sm' 
+            : 'hover:bg-white/[0.04] text-zinc-400 border-transparent'"
           @click="activeTabId = tab.id"
         >
-          <span class="font-semibold text-amber-500 truncate max-w-[160px]" :title="getTabTitle(tab)">{{ getTabTitle(tab) }}</span>
+          <span class="text-xs shrink-0">
+            {{ tab.type === 'auth' ? '👥' : (tab.activeDocPath ? '📄' : (tab.activeCollection ? '📁' : '🗄️')) }}
+          </span>
+          <span class="truncate font-medium text-amber-400" :title="getTabFullTitle(tab)">
+            {{ getTabTitle(tab) }}
+          </span>
           <span 
-            class="text-[#606870] hover:text-white rounded-full p-0.5 leading-none transition-colors"
+            class="text-zinc-500 hover:text-white rounded p-0.5 leading-none transition-colors text-xs ml-auto shrink-0"
             @click.stop="closeTab(tab.id)"
           >
-            &times;
+            ✕
           </span>
         </div>
       </div>
@@ -166,45 +313,59 @@
       <!-- Tab Contents Container -->
       <div class="flex-1 overflow-hidden relative">
         <!-- Welcome Screen -->
-        <div v-if="activeTabId === 'welcome'" class="h-full overflow-y-auto p-8 flex flex-col justify-center items-center text-center max-w-3xl mx-auto">
-          <img src="/logo.svg" class="w-20 h-20 mb-6 drop-shadow-[0_0_15px_rgba(245,158,11,0.2)] object-contain" alt="Logo" />
-          <h2 class="text-3xl font-bold font-display text-white mb-2">Welcome to Mikhaz Fire</h2>
-          <p class="text-[#9da5ac] mb-8 text-sm">
-            A fast, local, and premium Firebase Auth and Firestore controller. 
-            Connect your credentials locally and administer database structures and accounts with ease.
-          </p>
+        <div v-if="activeTabId === 'welcome'" class="h-full overflow-y-auto p-8 flex flex-col justify-center items-center text-center max-w-4xl mx-auto space-y-6">
+          <div class="relative">
+            <div class="absolute -inset-4 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
+            <img src="/logo.svg" class="w-20 h-20 relative drop-shadow-[0_0_25px_rgba(245,158,11,0.3)] object-contain" alt="Logo" />
+          </div>
+
+          <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight flame-gradient-text">
+              Mikhaz Fire Dashboard
+            </h2>
+            <p class="text-zinc-400 mt-2 text-sm max-w-xl mx-auto leading-relaxed">
+              Fast, offline-first Firebase Auth & Firestore administration. Inspect document structures, execute custom JavaScript queries, and migrate user accounts with embedded password hashes.
+            </p>
+          </div>
           
-          <div class="grid grid-cols-2 gap-4 w-full">
-            <div class="p-5 bg-[#121315] border border-[#2a2d31] rounded-lg text-left transition-all hover:border-amber-500/50">
-              <h3 class="font-bold text-white mb-1 flex items-center gap-2">
-                <span class="text-amber-500">&#10024;</span> Local Credential Scan
-              </h3>
-              <p class="text-xs text-[#9da5ac]">
-                Automatically reads from standard gcloud ADC and Firebase CLI profiles stored in AppData. Secure and offline.
+          <div class="grid grid-cols-2 gap-4 w-full text-left">
+            <div class="p-5 glass-card rounded-xl transition-all">
+              <div class="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg mb-3">
+                ✨
+              </div>
+              <h3 class="font-bold text-white mb-1">Local Credential Scan</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed">
+                Automatically reads from gcloud ADC and Firebase CLI profiles stored on your machine with zero remote key transmission.
               </p>
             </div>
-            <div class="p-5 bg-[#121315] border border-[#2a2d31] rounded-lg text-left transition-all hover:border-amber-500/50">
-              <h3 class="font-bold text-white mb-1 flex items-center gap-2">
-                <span class="text-amber-500">&#128274;</span> Auth Controller
-              </h3>
-              <p class="text-xs text-[#9da5ac]">
-                Create, update, delete auth accounts, update display names, passwords, and custom user claims in real-time.
+
+            <div class="p-5 glass-card rounded-xl transition-all">
+              <div class="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-lg mb-3">
+                👥
+              </div>
+              <h3 class="font-bold text-white mb-1">Auth Controller & Claims</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed">
+                Search, update profiles, toggle disabled status, and modify custom user claims (JSON metadata) in real-time.
               </p>
             </div>
-            <div class="p-5 bg-[#121315] border border-[#2a2d31] rounded-lg text-left transition-all hover:border-amber-500/50">
-              <h3 class="font-bold text-white mb-1 flex items-center gap-2">
-                <span class="text-amber-500">&#128452;</span> Firestore Explorer
-              </h3>
-              <p class="text-xs text-[#9da5ac]">
-                Navigate root collections, document graphs, inspect fields in table formats, and perform edits directly.
+
+            <div class="p-5 glass-card rounded-xl transition-all">
+              <div class="w-9 h-9 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 text-lg mb-3">
+                🗄️
+              </div>
+              <h3 class="font-bold text-white mb-1">Firestore Explorer</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed">
+                Navigate document graphs, tree views, structured tables, subcollections, and perform nested recursive deletions.
               </p>
             </div>
-            <div class="p-5 bg-[#121315] border border-[#2a2d31] rounded-lg text-left transition-all hover:border-amber-500/50">
-              <h3 class="font-bold text-white mb-1 flex items-center gap-2">
-                <span class="text-amber-500">&#9889;</span> JS Sandbox Queries
-              </h3>
-              <p class="text-xs text-[#9da5ac]">
-                Run custom JavaScript scripts in an embedded JS runtime with access to mocked Firestore admin APIs to batch modify.
+
+            <div class="p-5 glass-card rounded-xl transition-all">
+              <div class="w-9 h-9 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 text-lg mb-3">
+                ⚡
+              </div>
+              <h3 class="font-bold text-white mb-1">JS Query Engine & Sync</h3>
+              <p class="text-xs text-zinc-400 leading-relaxed">
+                Run JavaScript queries locally against Firestore using embedded Goja and copy collections directly between projects.
               </p>
             </div>
           </div>
@@ -218,18 +379,27 @@
           class="h-full w-full flex flex-col"
         >
           <!-- Auth Component -->
-          <div v-if="tab.type === 'auth'" class="h-full flex flex-col overflow-hidden p-6 space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h2 class="text-xl font-bold text-white">Auth User Manager</h2>
-                <p class="text-xs text-[#9da5ac]">{{ tab.projectId }} &middot; {{ tab.email }} &middot; {{ tab.users ? tab.users.length : 0 }} loaded users</p>
+          <div v-if="tab.type === 'auth'" class="h-full flex flex-col overflow-hidden p-5 space-y-4">
+            <!-- Header & Action Bar -->
+            <div class="flex items-center justify-between bg-[#0f1118] p-4 rounded-xl border border-white/[0.08] shadow-sm">
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-lg">👥</span>
+                  <h2 class="text-lg font-bold text-white tracking-tight">Auth User Manager</h2>
+                  <UBadge color="warning" variant="subtle" size="xs" class="font-mono">{{ tab.projectId }}</UBadge>
+                </div>
+                <p class="text-[11px] text-zinc-400 font-mono">
+                  Account: <span class="text-zinc-300">{{ tab.email }}</span>
+                </p>
               </div>
-              <div class="flex gap-2">
+
+              <div class="flex items-center gap-2">
                 <UButton
                   color="info"
                   variant="subtle"
-                  size="sm"
+                  size="xs"
                   icon="i-heroicons-arrow-up-tray"
+                  class="font-medium"
                   @click="openExportAuthModal(tab)"
                 >
                   Export Users
@@ -237,16 +407,18 @@
                 <UButton
                   color="success"
                   variant="subtle"
-                  size="sm"
+                  size="xs"
                   icon="i-heroicons-arrow-down-tray"
+                  class="font-medium"
                   @click="openImportAuthModal(tab)"
                 >
                   Import Users
                 </UButton>
                 <UButton
                   color="warning"
-                  size="sm"
+                  size="xs"
                   icon="i-heroicons-user-plus"
+                  class="font-medium shadow-sm shadow-amber-500/20"
                   @click="openCreateUserModal(tab)"
                 >
                   Create User
@@ -254,66 +426,110 @@
               </div>
             </div>
 
-            <!-- Search and Control Bar -->
-            <div class="flex gap-4 items-center">
-              <UInput
-                v-model="tab.searchQuery"
-                placeholder="Search by UID, email, display name..."
-                class="flex-1"
-                icon="i-heroicons-magnifying-glass"
-                @keydown.enter="fetchAuthUsers(tab)"
-              />
-              <UButton color="neutral" size="sm" @click="fetchAuthUsers(tab)">
-                Search
+            <!-- Metric Summary Stats Cards -->
+            <div class="grid grid-cols-4 gap-3">
+              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+                <div>
+                  <div class="text-[10px] uppercase font-semibold text-zinc-400">Total Loaded</div>
+                  <div class="text-xl font-extrabold text-white mt-0.5">{{ tab.users ? tab.users.length : 0 }}</div>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">👥</div>
+              </div>
+
+              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+                <div>
+                  <div class="text-[10px] uppercase font-semibold text-zinc-400">Active Accounts</div>
+                  <div class="text-xl font-extrabold text-emerald-400 mt-0.5">
+                    {{ tab.users ? tab.users.filter(u => !u.disabled).length : 0 }}
+                  </div>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">✓</div>
+              </div>
+
+              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+                <div>
+                  <div class="text-[10px] uppercase font-semibold text-zinc-400">Disabled</div>
+                  <div class="text-xl font-extrabold text-rose-400 mt-0.5">
+                    {{ tab.users ? tab.users.filter(u => u.disabled).length : 0 }}
+                  </div>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">🚫</div>
+              </div>
+
+              <div class="p-3 bg-[#141721] border border-white/[0.08] rounded-xl flex items-center justify-between">
+                <div>
+                  <div class="text-[10px] uppercase font-semibold text-zinc-400">Custom Claims</div>
+                  <div class="text-xl font-extrabold text-purple-400 mt-0.5">
+                    {{ countUsersWithClaims(tab.users) }}
+                  </div>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">⚡</div>
+              </div>
+            </div>
+
+            <!-- Unified Search and Filter Bar -->
+            <div class="flex items-center gap-3 bg-[#141721] p-2.5 rounded-xl border border-white/[0.08]">
+              <div class="flex-1 relative">
+                <UInput
+                  v-model="tab.searchQuery"
+                  placeholder="Instant filter by UID, email, display name..."
+                  size="sm"
+                  class="w-full bg-[#090a0f] border-white/10"
+                  icon="i-heroicons-magnifying-glass"
+                  @keydown.enter="fetchAuthUsers(tab)"
+                />
+              </div>
+              <UButton color="neutral" variant="subtle" size="sm" @click="fetchAuthUsers(tab)" :loading="tab.loading">
+                Search API
               </UButton>
-              <div class="h-6 w-[1px] bg-[#2a2d31]" />
-              <UInput
-                v-model="tab.authFilterEmail"
-                placeholder="Filter by email..."
-                class="w-64"
-                icon="i-heroicons-funnel"
-              />
+
+              <!-- Quick Status Filter Pills -->
+              <div class="flex items-center gap-1 bg-[#090a0f] p-1 rounded-lg border border-white/10">
+                <button
+                  v-for="filterOpt in ['all', 'active', 'disabled', 'claims']"
+                  :key="filterOpt"
+                  type="button"
+                  class="px-2.5 py-1 text-[10px] font-semibold uppercase rounded-md transition-all"
+                  :class="(tab.statusFilter || 'all') === filterOpt 
+                    ? 'bg-amber-500 text-black font-bold shadow' 
+                    : 'text-zinc-400 hover:text-white'"
+                  @click="tab.statusFilter = filterOpt"
+                >
+                  {{ filterOpt }}
+                </button>
+              </div>
             </div>
 
             <!-- Users Table -->
-            <div class="flex-1 border border-[#2a2d31] bg-[#121315] rounded-lg overflow-hidden flex flex-col">
+            <div class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl overflow-hidden flex flex-col shadow-md min-h-0">
               <div class="flex-1 overflow-auto">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr class="bg-[#1d1f22] text-[#e3e6e8] border-b border-[#2a2d31] font-semibold select-none">
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'uid')">
+                    <tr class="bg-[#141721] text-zinc-300 border-b border-white/[0.08] font-semibold select-none sticky top-0 z-10 backdrop-blur">
+                      <th class="p-3 w-12 text-center">#</th>
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'uid')">
                         UID
-                        <span v-if="tab.authSortField === 'uid'" class="ml-1 text-[10px] text-amber-500">
+                        <span v-if="tab.authSortField === 'uid'" class="ml-1 text-[10px] text-amber-400">
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'email')">
-                        Email
-                        <span v-if="tab.authSortField === 'email'" class="ml-1 text-[10px] text-amber-500">
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'email')">
+                        User / Email
+                        <span v-if="tab.authSortField === 'email'" class="ml-1 text-[10px] text-amber-400">
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'displayName')">
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'displayName')">
                         Display Name
-                        <span v-if="tab.authSortField === 'displayName'" class="ml-1 text-[10px] text-amber-500">
+                        <span v-if="tab.authSortField === 'displayName'" class="ml-1 text-[10px] text-amber-400">
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'disabled')">
-                        Disabled
-                        <span v-if="tab.authSortField === 'disabled'" class="ml-1 text-[10px] text-amber-500">
-                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
-                        </span>
-                      </th>
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'createdAt')">
+                      <th class="p-3">Status</th>
+                      <th class="p-3">Claims</th>
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'createdAt')">
                         Created
-                        <span v-if="tab.authSortField === 'createdAt'" class="ml-1 text-[10px] text-amber-500">
-                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
-                        </span>
-                      </th>
-                      <th class="p-3 cursor-pointer hover:text-amber-500 transition-colors" @click="toggleAuthSort(tab, 'lastLoginAt')">
-                        Last Login
-                        <span v-if="tab.authSortField === 'lastLoginAt'" class="ml-1 text-[10px] text-amber-500">
+                        <span v-if="tab.authSortField === 'createdAt'" class="ml-1 text-[10px] text-amber-400">
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
@@ -322,36 +538,117 @@
                   </thead>
                   <tbody>
                     <tr v-if="tab.loading" class="text-center">
-                      <td colspan="7" class="p-8 text-[#9da5ac]">Loading users...</td>
+                      <td colspan="8" class="p-12 text-zinc-400">
+                        <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
+                        <span>Loading users from project...</span>
+                      </td>
                     </tr>
                     <tr v-else-if="!tab.users || tab.users.length === 0" class="text-center">
-                      <td colspan="7" class="p-8 text-[#606870]">No users found.</td>
+                      <td colspan="8" class="p-12 text-zinc-500">No users found in this project.</td>
                     </tr>
                     <tr v-else-if="getFilteredSortedUsers(tab).length === 0" class="text-center">
-                      <td colspan="7" class="p-8 text-[#606870]">No users match the email filter.</td>
+                      <td colspan="8" class="p-12 text-zinc-500">No users match the search filter.</td>
                     </tr>
-                    <tr v-else v-for="user in getFilteredSortedUsers(tab)" :key="user.uid" class="border-b border-[#2a2d31] hover:bg-[#1d1f22] transition-colors">
-                      <td class="p-3 font-mono text-[11px] text-amber-500 truncate max-w-[150px]" :title="user.uid">{{ user.uid }}</td>
-                      <td class="p-3 truncate max-w-[150px]" :title="user.email">{{ user.email || 'Anonymous' }}</td>
-                      <td class="p-3 truncate max-w-[150px]" :title="user.displayName">{{ user.displayName || '-' }}</td>
+                    <tr 
+                      v-else 
+                      v-for="(user, idx) in getFilteredSortedUsers(tab)" 
+                      :key="user.uid" 
+                      class="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors group/row"
+                    >
+                      <!-- Index & Avatar -->
+                      <td class="p-3 text-center text-zinc-500 text-[11px] font-mono">
+                        {{ idx + 1 }}
+                      </td>
+
+                      <!-- UID with 1-click Copy -->
+                      <td class="p-3 font-mono text-[11px] text-amber-400">
+                        <div class="flex items-center gap-1.5">
+                          <span class="truncate max-w-[130px]" :title="user.uid">{{ user.uid }}</span>
+                          <button
+                            type="button"
+                            class="opacity-0 group-hover/row:opacity-100 text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-opacity"
+                            @click="copyText(user.uid, 'UID copied to clipboard!')"
+                            title="Copy UID"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      </td>
+
+                      <!-- Email with Avatar -->
                       <td class="p-3">
-                        <UBadge :color="user.disabled ? 'danger' : 'success'" variant="subtle" size="sm">
-                          {{ user.disabled ? 'Yes' : 'No' }}
+                        <div class="flex items-center gap-2 min-w-0">
+                          <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                            {{ getUserInitial(user) }}
+                          </div>
+                          <div class="truncate max-w-[180px]">
+                            <span class="font-medium text-white truncate" :title="user.email">{{ user.email || 'Anonymous' }}</span>
+                          </div>
+                          <button
+                            v-if="user.email"
+                            type="button"
+                            class="opacity-0 group-hover/row:opacity-100 text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-opacity shrink-0"
+                            @click="copyText(user.email, 'Email copied to clipboard!')"
+                            title="Copy Email"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      </td>
+
+                      <!-- Display Name -->
+                      <td class="p-3 text-zinc-300 truncate max-w-[140px]" :title="user.displayName">
+                        {{ user.displayName || '-' }}
+                      </td>
+
+                      <!-- Status Badge -->
+                      <td class="p-3">
+                        <UBadge 
+                          :color="user.disabled ? 'danger' : 'success'" 
+                          variant="subtle" 
+                          size="xs"
+                          class="font-medium"
+                        >
+                          {{ user.disabled ? 'Disabled' : 'Active' }}
                         </UBadge>
                       </td>
-                      <td class="p-3 text-[#606870]">{{ formatDate(user.createdAt) }}</td>
-                      <td class="p-3 text-[#606870]">{{ formatDate(user.lastLoginAt) }}</td>
-                      <td class="p-3 text-right space-x-1.5">
-                        <UButton size="xs" variant="ghost" color="neutral" @click="editUserClaims(tab, user)">Claims</UButton>
-                        <UButton size="xs" variant="ghost" color="neutral" @click="editUserBasic(tab, user)">Edit</UButton>
-                        <UButton size="xs" variant="ghost" color="danger" @click="deleteUserConfirm(tab, user)">Delete</UButton>
+
+                      <!-- Claims Badge -->
+                      <td class="p-3">
+                        <span 
+                          v-if="hasCustomClaims(user)"
+                          class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 cursor-pointer hover:border-purple-400"
+                          @click="editUserClaims(tab, user)"
+                          title="Click to view/edit claims"
+                        >
+                          ⚡ Has Claims
+                        </span>
+                        <span v-else class="text-zinc-600 text-[10px]">-</span>
+                      </td>
+
+                      <!-- Created Date -->
+                      <td class="p-3 text-zinc-400 text-[11px] font-mono">{{ formatDate(user.createdAt) }}</td>
+
+                      <!-- Actions -->
+                      <td class="p-3 text-right space-x-1 whitespace-nowrap">
+                        <UButton size="xs" variant="ghost" color="neutral" @click="editUserClaims(tab, user)" title="Edit Claims">
+                          Claims
+                        </UButton>
+                        <UButton size="xs" variant="ghost" color="neutral" @click="editUserBasic(tab, user)" title="Edit User">
+                          Edit
+                        </UButton>
+                        <UButton size="xs" variant="ghost" color="danger" @click="deleteUserConfirm(tab, user)" title="Delete User">
+                          Delete
+                        </UButton>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+
               <!-- Pagination / Next Page -->
-              <div v-if="tab.nextPageToken" class="p-3 bg-[#1d1f22] border-t border-[#2a2d31] flex justify-end">
+              <div v-if="tab.nextPageToken" class="p-3 bg-[#141721] border-t border-white/[0.08] flex justify-between items-center text-xs">
+                <span class="text-zinc-400 font-mono text-[11px]">More users available on server</span>
                 <UButton size="xs" color="warning" @click="fetchAuthUsersNext(tab)">
                   Load More Users
                 </UButton>
@@ -361,62 +658,133 @@
 
           <!-- Firestore Component -->
           <div v-else-if="tab.type === 'firestore'" class="h-full flex overflow-hidden">
-            <!-- Left Pane: Collections / Documents Explorer -->
-            <div class="w-80 border-r border-[#2a2d31] bg-[#121315] flex flex-col">
-              <div class="p-4 border-b border-[#2a2d31] flex items-center justify-between">
-                <h3 class="font-bold text-sm text-white">Collections</h3>
-                <div class="flex items-center gap-1">
-                  <UButton size="xs" color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="refreshCollections(tab)" />
+            <!-- Left Pane: Collections Explorer with Search Filter -->
+            <!-- Left Pane: Collections Explorer with Search Filter -->
+            <div 
+              class="border-r border-white/[0.08] bg-[#0f1118] flex flex-col flex-shrink-0 transition-all duration-200"
+              :class="tab.collectionsCollapsed ? 'w-11' : 'w-64'"
+            >
+              <!-- Collections Header -->
+              <div class="p-2.5 border-b border-white/[0.08] flex items-center justify-between bg-[#141721]/60">
+                <div v-if="!tab.collectionsCollapsed" class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-amber-400 text-sm shrink-0">🗄️</span>
+                  <h3 class="font-bold text-xs uppercase tracking-wider text-white truncate">Collections</h3>
+                  <span class="text-[10px] text-zinc-400 font-mono shrink-0">({{ tab.collections ? tab.collections.length : 0 }})</span>
+                </div>
+                <div class="flex items-center gap-0.5" :class="{ 'mx-auto': tab.collectionsCollapsed }">
+                  <UButton 
+                    v-if="!tab.collectionsCollapsed" 
+                    size="xs" 
+                    color="neutral" 
+                    variant="ghost" 
+                    icon="i-heroicons-arrow-path" 
+                    @click="refreshCollections(tab)" 
+                    title="Refresh Collections" 
+                  />
+                  <UButton 
+                    size="xs" 
+                    color="neutral" 
+                    variant="ghost" 
+                    :icon="tab.collectionsCollapsed ? 'i-heroicons-chevron-double-right' : 'i-heroicons-chevron-double-left'" 
+                    @click="tab.collectionsCollapsed = !tab.collectionsCollapsed" 
+                    :title="tab.collectionsCollapsed ? 'Expand Collections Panel' : 'Collapse Collections Panel'" 
+                  />
                 </div>
               </div>
-              <div class="flex-1 overflow-y-auto p-2 space-y-1">
-                <div v-if="tab.loadingCollections" class="text-xs text-[#606870] p-4 text-center">Loading root collections...</div>
-                <div v-else-if="tab.collections.length === 0" class="text-xs text-[#606870] p-4 text-center">No collections found.</div>
-                
-                <div v-for="col in tab.collections" :key="col" class="space-y-1">
+
+              <!-- Collapsed quick expand trigger -->
+              <div 
+                v-if="tab.collectionsCollapsed" 
+                class="flex-1 flex flex-col items-center py-4 gap-3 text-zinc-500 hover:text-amber-400 cursor-pointer transition-colors"
+                @click="tab.collectionsCollapsed = false"
+                title="Click to expand collections"
+              >
+                <span class="text-base">📁</span>
+                <span class="text-[10px] font-mono [writing-mode:vertical-lr] tracking-widest uppercase rotate-180 select-none">
+                  Colls ({{ tab.collections ? tab.collections.length : 0 }})
+                </span>
+              </div>
+
+              <template v-else>
+                <!-- Collection Search Input -->
+                <div class="p-2 border-b border-white/[0.08] bg-[#0b0d13]">
+                  <UInput
+                    v-model="tab.collectionSearch"
+                    placeholder="Filter collections..."
+                    icon="i-heroicons-magnifying-glass"
+                    size="xs"
+                    class="w-full bg-[#141721] border-white/10 text-xs"
+                  />
+                </div>
+
+                <!-- Collections List -->
+                <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                  <div v-if="tab.loadingCollections" class="text-xs text-zinc-400 p-6 text-center space-y-2">
+                    <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin mx-auto text-amber-400" />
+                    <span>Loading collections...</span>
+                  </div>
+                  <div v-else-if="!tab.collections || tab.collections.length === 0" class="text-xs text-zinc-500 p-6 text-center">
+                    No collections found.
+                  </div>
+                  
                   <div 
-                    class="p-2 rounded-md hover:bg-[#1d1f22] text-xs font-semibold cursor-pointer text-[#e3e6e8] flex justify-between items-center"
-                    :class="tab.activeCollection === col ? 'bg-[#1d1f22] border-l-2 border-amber-500' : ''"
-                    @click="openCollectionInNewTab(tab, col)"
+                    v-for="col in getFilteredCollections(tab)" 
+                    :key="col" 
+                    class="p-2 rounded-lg text-xs font-semibold cursor-pointer text-zinc-300 flex justify-between items-center transition-all border"
+                    :class="tab.activeCollection === col 
+                      ? 'bg-[#191c28] border-amber-500/40 text-amber-300 shadow-sm' 
+                      : 'hover:bg-white/[0.04] border-transparent hover:text-white'"
+                    @click="selectCollection(tab, col)"
                   >
-                    <span class="truncate">{{ col }}</span>
-                    <span class="text-[10px] text-amber-500">Col</span>
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="text-xs">📁</span>
+                      <span class="truncate font-mono">{{ col }}</span>
+                    </div>
+                    <button 
+                      @click.stop="openCollectionInNewTab(tab, col)"
+                      class="text-[10px] text-zinc-500 hover:text-amber-400 px-1 py-0.5 rounded transition-colors"
+                      title="Open in new tab"
+                    >
+                      ↗
+                    </button>
                   </div>
                 </div>
-              </div>
+              </template>
             </div>
 
             <!-- Right Pane: Document Viewer / Editor / JS Queries -->
-            <div class="flex-1 flex flex-col overflow-hidden bg-[#0c0d0e]">
-              <!-- Header -->
-              <div class="p-4 border-b border-[#2a2d31] bg-[#121315] flex justify-between items-center">
-                <div>
-                  <h3 class="font-bold text-white flex items-center gap-2 flex-wrap">
-                    <span class="capitalize text-amber-500">{{ tab.firestoreView || 'Explorer' }}</span>
-                    <div v-if="tab.firestoreView === 'explorer' && tab.activeCollection" class="flex items-center gap-1 text-xs text-[#9da5ac]">
-                      <span>&middot;</span>
-                      <template v-for="(seg, idx) in getCollectionBreadcrumbs(tab.activeCollection)" :key="idx">
-                        <span v-if="idx > 0" class="text-[#606870]">&gt;</span>
-                        <button 
-                          v-if="seg.isCollection" 
-                          class="text-amber-400 hover:underline font-mono text-xs cursor-pointer font-semibold"
-                          @click="selectCollection(tab, seg.path)"
-                          title="Navigate to collection"
-                        >
-                          {{ seg.name }}
-                        </button>
-                        <span v-else class="text-[#e3e6e8] font-mono text-xs font-semibold">
-                          {{ seg.name }}
-                        </span>
-                      </template>
-                    </div>
-                  </h3>
+            <div class="flex-1 flex flex-col overflow-hidden bg-[#090a0f]">
+              <!-- Breadcrumb Header -->
+              <div class="p-3.5 border-b border-white/[0.08] bg-[#0f1118] flex justify-between items-center shadow-sm">
+                <div class="flex items-center gap-2 flex-wrap min-w-0">
+                  <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                    <span>⚡</span> {{ tab.firestoreView || 'Explorer' }}
+                  </span>
+                  
+                  <div v-if="tab.activeCollection" class="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <span class="text-zinc-600">/</span>
+                    <template v-for="(seg, idx) in getCollectionBreadcrumbs(tab.activeCollection)" :key="idx">
+                      <span v-if="idx > 0" class="text-zinc-600">&gt;</span>
+                      <button 
+                        v-if="seg.isCollection" 
+                        class="text-amber-400 hover:underline font-mono text-xs cursor-pointer font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
+                        @click="selectCollection(tab, seg.path)"
+                        title="Navigate to collection"
+                      >
+                        {{ seg.name }}
+                      </button>
+                      <span v-else class="text-zinc-200 font-mono text-xs font-semibold px-1 py-0.5">
+                        {{ seg.name }}
+                      </span>
+                    </template>
+                  </div>
                 </div>
-                <div class="flex gap-2">
-                  <UButton size="xs" color="neutral" variant="subtle" @click="openCopyWizard(tab)">
+
+                <div class="flex items-center gap-2">
+                  <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-arrow-path-rounded-square" @click="openCopyWizard(tab)">
                     Copy Wizard
                   </UButton>
-                  <UButton v-if="tab.firestoreView === 'explorer' && tab.activeCollection" size="xs" color="warning" @click="openAddDocModal(tab)">
+                  <UButton v-if="tab.activeCollection" size="xs" color="warning" icon="i-heroicons-plus" @click="openAddDocModal(tab)">
                     Add Document
                   </UButton>
                 </div>
@@ -425,171 +793,193 @@
               <!-- Main Viewport -->
               <div class="flex-1 overflow-hidden">
                 <!-- Explorer View -->
-                <div v-if="tab.firestoreView === 'explorer'" class="h-full flex flex-col p-6 space-y-4 overflow-hidden">
-                  <div v-if="!tab.activeCollection" class="h-full flex justify-center items-center text-[#606870] text-sm">
-                    Select a collection on the left sidebar to browse documents.
+                <div v-if="tab.firestoreView === 'explorer'" class="h-full flex flex-col p-5 space-y-3 overflow-hidden">
+                  <div v-if="!tab.activeCollection" class="h-full flex flex-col justify-center items-center text-zinc-500 text-sm space-y-2">
+                    <div class="text-3xl">📁</div>
+                    <div class="font-medium text-zinc-300">Select a collection on the left sidebar</div>
+                    <div class="text-xs text-zinc-500">Choose any collection to browse and query documents.</div>
                   </div>
-                  <div v-else class="flex-1 flex flex-col space-y-4 min-h-0">
+                  <div v-else class="flex-1 flex flex-col space-y-3 min-h-0">
                     
-                    <!-- Query Builder Panel (Above the Results) -->
-                    <div class="border border-[#2a2d31] bg-[#121315] rounded-lg p-4 space-y-3 flex flex-col">
-                      <div class="flex items-center justify-between border-b border-[#2a2d31] pb-2">
+                    <!-- Collapsible Query Builder Panel -->
+                    <div class="border border-white/[0.08] bg-[#0f1118] rounded-xl p-3.5 space-y-3 flex flex-col shadow-sm">
+                      <div class="flex items-center justify-between cursor-pointer select-none" @click="tab.queryExpanded = !tab.queryExpanded">
                         <div class="flex items-center gap-2">
-                          <span class="text-xs font-bold text-white uppercase">Query Builder</span>
-                          <span class="text-[10px] bg-[#2a2d31] text-[#9da5ac] px-1.5 py-0.5 rounded font-mono">{{ tab.activeCollection }}</span>
+                          <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                            <span class="text-amber-400">🔍</span> Query Builder
+                          </span>
+                          <span class="text-[10px] bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded font-mono border border-amber-500/25">
+                            {{ tab.activeCollection }}
+                          </span>
                         </div>
-                        <div class="flex items-center gap-1 bg-[#0c0d0e] p-0.5 rounded border border-[#2a2d31]">
-                          <UButton 
-                            size="xs" 
-                            :color="tab.queryMode === 'simple' ? 'warning' : 'neutral'" 
-                            variant="ghost" 
-                            @click="setQueryMode(tab, 'simple')"
-                          >
-                            Simple
-                          </UButton>
-                          <UButton 
-                            size="xs" 
-                            :color="tab.queryMode === 'js' ? 'warning' : 'neutral'" 
-                            variant="ghost" 
-                            @click="setQueryMode(tab, 'js')"
-                          >
-                            JS Query
-                          </UButton>
-                        </div>
-                      </div>
-
-                      <!-- Simple Query Form -->
-                      <div v-if="tab.queryMode === 'simple'" class="grid grid-cols-4 gap-3 text-xs">
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Document ID (UID)</label>
-                          <UInput v-model="tab.queryDocId" placeholder="Optional ID" class="w-full bg-[#0c0d0e]" />
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Filter Field</label>
-                          <UInput v-model="tab.queryFilterField" placeholder="e.g. role" class="w-full bg-[#0c0d0e]" :list="'filter-fields-list-' + tab.id" />
-                          <datalist :id="'filter-fields-list-' + tab.id">
-                            <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
-                          </datalist>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Op</label>
-                          <USelect 
-                            v-model="tab.queryFilterOp" 
-                            :items="['==', '>', '>=', '<', '<=', '!=', 'array-contains']" 
-                            class="w-full bg-[#0c0d0e]" 
-                          />
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Value</label>
-                          <UInput v-model="tab.queryFilterVal" placeholder="value" class="w-full bg-[#0c0d0e]" />
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Sort Field</label>
-                          <UInput v-model="tab.querySortField" placeholder="e.g. created_at" class="w-full bg-[#0c0d0e]" :list="'sort-fields-list-' + tab.id" />
-                          <datalist :id="'sort-fields-list-' + tab.id">
-                            <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
-                          </datalist>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Sort Direction</label>
-                          <USelect 
-                            v-model="tab.querySortDir" 
-                            :items="[{label:'Ascending',value:'asc'}, {label:'Descending',value:'desc'}]" 
-                            class="w-full bg-[#0c0d0e]" 
-                          />
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          <label class="font-semibold text-[#9da5ac]">Limit (Quantity)</label>
-                          <UInput v-model.number="tab.queryLimit" type="number" placeholder="50" class="w-full bg-[#0c0d0e]" />
-                        </div>
-                        <div class="flex items-end justify-end">
-                          <UButton color="warning" @click="runSimpleQueryAction(tab)" :loading="tab.loadingDocuments" class="w-full justify-center">
-                            Run Simple Query
-                          </UButton>
+                        <div class="flex items-center gap-2" @click.stop>
+                          <div class="flex items-center gap-1 bg-[#090a0f] p-0.5 rounded-lg border border-white/10">
+                            <button 
+                              type="button"
+                              class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all"
+                              :class="tab.queryMode === 'simple' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
+                              @click="setQueryMode(tab, 'simple')"
+                            >
+                              Simple Query
+                            </button>
+                            <button 
+                              type="button"
+                              class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all"
+                              :class="tab.queryMode === 'js' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
+                              @click="setQueryMode(tab, 'js')"
+                            >
+                              JS Sandbox
+                            </button>
+                          </div>
+                          <span class="text-zinc-400 hover:text-white text-xs p-1" @click="tab.queryExpanded = !tab.queryExpanded">
+                            {{ tab.queryExpanded ? '▲' : '▼' }}
+                          </span>
                         </div>
                       </div>
 
-                      <!-- JS Query Form -->
-                      <div v-else class="space-y-3 flex flex-col">
-                        <div class="flex justify-between items-center text-xs">
-                          <div class="flex items-center gap-2">
-                            <label class="font-semibold text-[#9da5ac]">Preset Template:</label>
+                      <!-- Collapsible Body -->
+                      <div v-show="tab.queryExpanded !== false">
+                        <!-- Simple Query Form -->
+                        <div v-if="tab.queryMode === 'simple'" class="grid grid-cols-4 gap-3 text-xs pt-1">
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Document ID</label>
+                            <UInput v-model="tab.queryDocId" placeholder="Optional ID" size="xs" class="w-full bg-[#090a0f]" />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Filter Field</label>
+                            <UInput v-model="tab.queryFilterField" placeholder="e.g. role" size="xs" class="w-full bg-[#090a0f]" :list="'filter-fields-list-' + tab.id" />
+                            <datalist :id="'filter-fields-list-' + tab.id">
+                              <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
+                            </datalist>
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Operator</label>
                             <USelect 
-                              v-model="tab.queryPreset" 
-                              :items="['Basic Fetch', 'Filter & Order', 'Projection', 'Aggregate Sum', 'Subcollection Fetch']" 
-                              class="bg-[#0c0d0e] shrink-0" 
-                              @update:model-value="loadPresetQueryScript(tab)"
+                              v-model="tab.queryFilterOp" 
+                              :items="['==', '>', '>=', '<', '<=', '!=', 'array-contains']" 
+                              size="xs"
+                              class="w-full bg-[#090a0f]" 
                             />
                           </div>
-                          <span class="text-[10px] text-[#606870]">Runs local mock JS engine against DB</span>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Value</label>
+                            <UInput v-model="tab.queryFilterVal" placeholder="Filter value" size="xs" class="w-full bg-[#090a0f]" />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Sort Field</label>
+                            <UInput v-model="tab.querySortField" placeholder="e.g. createdAt" size="xs" class="w-full bg-[#090a0f]" :list="'sort-fields-list-' + tab.id" />
+                            <datalist :id="'sort-fields-list-' + tab.id">
+                              <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
+                            </datalist>
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Direction</label>
+                            <USelect 
+                              v-model="tab.querySortDir" 
+                              :items="[{label:'Ascending',value:'asc'}, {label:'Descending',value:'desc'}]" 
+                              size="xs"
+                              class="w-full bg-[#090a0f]" 
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="font-semibold text-zinc-400 text-[11px]">Limit</label>
+                            <UInput v-model.number="tab.queryLimit" type="number" placeholder="50" size="xs" class="w-full bg-[#090a0f]" />
+                          </div>
+                          <div class="flex items-end justify-end">
+                            <UButton color="warning" size="xs" @click="runSimpleQueryAction(tab)" :loading="tab.loadingDocuments" class="w-full justify-center font-semibold">
+                              Run Query
+                            </UButton>
+                          </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                          <!-- Editor -->
-                          <div class="flex flex-col space-y-2">
-                            <UTextarea 
-                              v-model="tab.queryScript" 
-                              class="font-mono text-xs bg-[#0c0d0e] flex-1" 
-                              rows="10"
-                              placeholder="// JavaScript query script..." 
-                            />
-                            <div class="flex justify-end">
-                              <UButton color="warning" @click="runQueryScript(tab)" :loading="tab.runningQuery">
-                                Run JS Script
-                              </UButton>
+
+                        <!-- JS Query Form -->
+                        <div v-else class="space-y-3 flex flex-col pt-1">
+                          <div class="flex justify-between items-center text-xs">
+                            <div class="flex items-center gap-2">
+                              <label class="font-semibold text-zinc-400">Preset Template:</label>
+                              <USelect 
+                                v-model="tab.queryPreset" 
+                                :items="['Basic Fetch', 'Filter & Order', 'Projection', 'Aggregate Sum', 'Subcollection Fetch']" 
+                                size="xs"
+                                class="bg-[#090a0f] shrink-0" 
+                                @update:model-value="loadPresetQueryScript(tab)"
+                              />
                             </div>
+                            <span class="text-[10px] text-zinc-500 font-mono">Runs local mock JS engine against DB</span>
                           </div>
-                          <!-- Console Output -->
-                          <div class="flex flex-col space-y-1">
-                            <label class="text-[10px] font-semibold text-[#9da5ac]">Query Output Logs</label>
-                            <pre class="flex-1 font-mono text-[10px] text-green-400 overflow-auto bg-[#0c0d0e] p-3 rounded border border-[#2a2d31] whitespace-pre-wrap min-h-[200px]">{{ tab.queryOutput || 'No output yet.' }}</pre>
+                          <div class="grid grid-cols-2 gap-4">
+                            <!-- Editor -->
+                            <div class="flex flex-col space-y-2">
+                              <UTextarea 
+                                v-model="tab.queryScript" 
+                                class="font-mono text-xs bg-[#090a0f] flex-1 border-white/10" 
+                                rows="8"
+                                placeholder="// JavaScript query script..." 
+                              />
+                              <div class="flex justify-end">
+                                <UButton color="warning" size="xs" @click="runQueryScript(tab)" :loading="tab.runningQuery">
+                                  Run Script
+                                </UButton>
+                              </div>
+                            </div>
+                            <!-- Console Output -->
+                            <div class="flex flex-col space-y-1">
+                              <label class="text-[10px] font-semibold text-zinc-400">Query Output Logs</label>
+                              <pre class="flex-1 font-mono text-[10px] text-emerald-400 overflow-auto bg-[#090a0f] p-3 rounded-lg border border-white/10 whitespace-pre-wrap min-h-[160px]">{{ tab.queryOutput || 'No output yet.' }}</pre>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <!-- Results Section (Table / Tree / JSON) -->
-                    <div class="flex-1 flex flex-col space-y-3 min-h-0">
+                    <div class="flex-1 flex flex-col space-y-2 min-h-0">
                       <!-- Results Navigation Tabs and Selection Toolbar -->
-                      <div class="flex items-center justify-between border-b border-[#2a2d31] pb-2">
-                        <div class="flex items-center gap-1 bg-[#121315] p-1 rounded-md border border-[#2a2d31]">
-                          <UButton 
-                            size="xs" 
-                            :color="tab.resultsView === 'tree' ? 'warning' : 'neutral'" 
-                            variant="ghost" 
+                      <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
+                        <div class="flex items-center gap-1 bg-[#141721] p-1 rounded-lg border border-white/[0.08]">
+                          <button 
+                            type="button"
+                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                            :class="tab.resultsView === 'tree' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
                             @click="tab.resultsView = 'tree'"
                           >
-                            Tree
-                          </UButton>
-                          <UButton 
-                            size="xs" 
-                            :color="tab.resultsView === 'table' ? 'warning' : 'neutral'" 
-                            variant="ghost" 
+                            <span>🌲</span> Tree
+                          </button>
+                          <button 
+                            type="button"
+                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                            :class="tab.resultsView === 'table' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
                             @click="tab.resultsView = 'table'"
                           >
-                            Table
-                          </UButton>
-                          <UButton 
-                            size="xs" 
-                            :color="tab.resultsView === 'json' ? 'warning' : 'neutral'" 
-                            variant="ghost" 
+                            <span>📊</span> Table
+                          </button>
+                          <button 
+                            type="button"
+                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                            :class="tab.resultsView === 'json' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
                             @click="tab.resultsView = 'json'"
                           >
-                            JSON
-                          </UButton>
+                            <span>{ }</span> JSON
+                          </button>
                         </div>
 
-                        <!-- Selection Action Toolbar -->
-                        <div class="flex items-center justify-between gap-3">
-                          <span class="text-xs text-[#9da5ac] font-medium" v-if="tab.selectedDocNames && tab.selectedDocNames.length > 0">
+                        <!-- Document Count & Selection Action Toolbar -->
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs text-zinc-400 font-mono">
+                            {{ tab.documents ? tab.documents.length : 0 }} document(s)
+                          </span>
+
+                          <span class="text-xs text-amber-400 font-semibold" v-if="tab.selectedDocNames && tab.selectedDocNames.length > 0">
                             {{ tab.selectedDocNames.length }} selected
                           </span>
+                          
                           <div v-if="tab.selectedDocNames && tab.selectedDocNames.length > 0" class="flex gap-2">
                             <UButton 
                               size="xs" 
                               color="danger" 
                               @click="deleteSelectedDocuments(tab)"
                             >
-                              Delete Selected
+                              Delete
                             </UButton>
                             <UButton 
                               size="xs" 
@@ -597,7 +987,7 @@
                               variant="subtle"
                               @click="triggerExportSelected(tab)"
                             >
-                              Export Selected
+                              Export
                             </UButton>
                           </div>
                           <UButton 
@@ -612,26 +1002,31 @@
                       </div>
 
                       <!-- Tree Viewer -->
-                      <div v-if="tab.resultsView === 'tree'" class="flex-1 border border-[#2a2d31] bg-[#121315] rounded-lg p-4 overflow-y-auto flex flex-col gap-2 min-h-0">
-                        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-[#2a2d31]">
+                      <div v-if="tab.resultsView === 'tree'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl p-4 overflow-y-auto flex flex-col gap-2 min-h-0 shadow-inner">
+                        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/[0.08]">
                           <input 
                             type="checkbox" 
                             :checked="tab.selectedDocNames && tab.selectedDocNames.length === tab.documents.length && tab.documents.length > 0"
                             @change="toggleSelectAllDocs(tab)"
                             class="accent-amber-500 rounded"
                           />
-                          <span class="text-xs text-[#9da5ac]">Select All Documents</span>
+                          <span class="text-xs text-zinc-400">Select All Documents</span>
                         </div>
                         
-                        <div v-if="tab.loadingDocuments" class="text-xs text-[#9da5ac] text-center p-8">Loading documents...</div>
-                        <div v-else-if="!tab.documents || tab.documents.length === 0" class="text-xs text-[#606870] text-center p-8">No documents found.</div>
-                        <div v-else class="space-y-3">
-                          <div v-for="doc in tab.documents" :key="doc.name" class="border border-[#1d1f22] hover:border-[#2a2d31] rounded-md p-2 bg-[#0c0d0e]/50 flex items-start gap-3">
+                        <div v-if="tab.loadingDocuments" class="text-xs text-zinc-400 text-center p-8 space-y-2">
+                          <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400" />
+                          <span>Loading documents...</span>
+                        </div>
+                        <div v-else-if="!tab.documents || tab.documents.length === 0" class="text-xs text-zinc-500 text-center p-8">
+                          No documents found in this collection.
+                        </div>
+                        <div v-else class="space-y-2">
+                          <div v-for="doc in tab.documents" :key="doc.name" class="border border-white/[0.06] hover:border-amber-500/30 rounded-xl p-2.5 bg-[#141721]/60 flex items-start gap-3 transition-all">
                             <input 
                               type="checkbox" 
                               :checked="tab.selectedDocNames && tab.selectedDocNames.includes(doc.name)"
                               @change="toggleSelectDoc(tab, doc.name)"
-                              class="accent-amber-500 mt-1"
+                              class="accent-amber-500 mt-1.5"
                             />
                             <div class="flex-1 min-w-0">
                               <JsonTree 
@@ -657,11 +1052,11 @@
                       </div>
 
                       <!-- Table Viewer -->
-                      <div v-else-if="tab.resultsView === 'table'" class="flex-1 border border-[#2a2d31] bg-[#121315] rounded-lg overflow-hidden flex flex-col min-h-0">
+                      <div v-else-if="tab.resultsView === 'table'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl overflow-hidden flex flex-col min-h-0 shadow-md">
                         <div class="flex-1 overflow-auto">
                           <table class="w-full text-left border-collapse text-xs">
                             <thead>
-                              <tr class="bg-[#1d1f22] text-[#e3e6e8] border-b border-[#2a2d31] font-semibold select-none">
+                              <tr class="bg-[#141721] text-zinc-300 border-b border-white/[0.08] font-semibold select-none sticky top-0 z-10 backdrop-blur">
                                 <th class="p-3 w-10 text-center">
                                   <input 
                                     type="checkbox" 
@@ -671,22 +1066,25 @@
                                   />
                                 </th>
                                 <th class="p-3 w-1/4">Document ID</th>
-                                <th v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3">{{ col }}</th>
+                                <th v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-zinc-300">{{ col }}</th>
                                 <th class="p-3 text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               <tr v-if="tab.loadingDocuments" class="text-center">
-                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-8 text-[#9da5ac]">Loading documents...</td>
+                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-12 text-zinc-400">
+                                  <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
+                                  <span>Loading documents...</span>
+                                </td>
                               </tr>
                               <tr v-else-if="!tab.documents || tab.documents.length === 0" class="text-center">
-                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-8 text-[#606870]">No documents found.</td>
+                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-12 text-zinc-500">No documents found.</td>
                               </tr>
                               <tr 
                                 v-else 
                                 v-for="doc in tab.documents" 
                                 :key="doc.name" 
-                                class="border-b border-[#2a2d31] hover:bg-[#1d1f22] transition-colors cursor-pointer"
+                                class="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors cursor-pointer group/row"
                                 @click="toggleSelectDoc(tab, doc.name)"
                               >
                                 <td class="p-3 text-center" @click.stop>
@@ -697,27 +1095,39 @@
                                     class="accent-amber-500 rounded"
                                   />
                                 </td>
-                                <td class="p-3 font-mono font-semibold text-amber-500 truncate" :title="getDocId(doc.name)">
-                                  {{ getDocId(doc.name) }}
+                                <td class="p-3 font-mono font-semibold text-amber-400">
+                                  <div class="flex items-center gap-1.5">
+                                    <span class="truncate max-w-[140px] cursor-pointer hover:underline" :title="getDocId(doc.name)" @click.stop="openDocInNewTab(tab, doc)">
+                                      {{ getDocId(doc.name) }}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      class="opacity-0 group-hover/row:opacity-100 text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-opacity"
+                                      @click.stop="copyText(getDocId(doc.name), 'Document ID copied!')"
+                                      title="Copy Document ID"
+                                    >
+                                      📋
+                                    </button>
+                                  </div>
                                 </td>
-                                <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[10px] text-[#9da5ac] truncate max-w-[150px]">
+                                <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[11px] text-zinc-400 truncate max-w-[150px]">
                                   {{ getColumnValue(doc, col) }}
                                 </td>
-                                <td class="p-3 text-right space-x-1" @click.stop>
+                                <td class="p-3 text-right space-x-1 whitespace-nowrap" @click.stop>
                                   <UPopover v-if="getDocSubcollectionsFetched(tab, doc) || getDocSubcollectionsLoading(tab, doc)">
-                                    <UButton size="xs" variant="subtle" color="warning">
+                                    <UButton size="xs" variant="subtle" color="warning" class="text-[10px]">
                                       📁 {{ getDocSubcollections(tab, doc).length }} Subcoll
                                     </UButton>
                                     <template #content>
-                                      <div class="p-2 space-y-1 bg-[#121315] border border-[#2a2d31] rounded-md shadow-xl text-xs max-w-xs text-left">
-                                        <div class="font-bold text-amber-400 border-b border-[#2a2d31] pb-1 flex justify-between items-center">
+                                      <div class="p-3 space-y-1 bg-[#141721] border border-white/10 rounded-xl shadow-2xl text-xs max-w-xs text-left">
+                                        <div class="font-bold text-amber-400 border-b border-white/10 pb-1.5 flex justify-between items-center">
                                           <span>Subcollections</span>
                                           <UButton size="2xs" color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="fetchSubcollectionsForDoc(tab, doc)" />
                                         </div>
-                                        <div v-if="getDocSubcollectionsLoading(tab, doc)" class="text-xs text-[#9da5ac] p-2">Loading...</div>
-                                        <div v-else-if="getDocSubcollections(tab, doc).length === 0" class="text-xs text-[#606870] p-2">No subcollections found</div>
-                                        <div v-else v-for="subCol in getDocSubcollections(tab, doc)" :key="subCol" class="flex justify-between items-center gap-2 p-1 hover:bg-[#1d1f22] rounded">
-                                          <span class="font-mono text-amber-300">{{ subCol }}</span>
+                                        <div v-if="getDocSubcollectionsLoading(tab, doc)" class="text-xs text-zinc-400 p-2">Loading...</div>
+                                        <div v-else-if="getDocSubcollections(tab, doc).length === 0" class="text-xs text-zinc-500 p-2">No subcollections found</div>
+                                        <div v-else v-for="subCol in getDocSubcollections(tab, doc)" :key="subCol" class="flex justify-between items-center gap-2 p-1.5 hover:bg-white/5 rounded-lg">
+                                          <span class="font-mono text-amber-300 text-xs">{{ subCol }}</span>
                                           <div class="flex gap-1">
                                             <UButton size="2xs" color="warning" variant="ghost" @click="openSubcollection(tab, doc, subCol)">Open</UButton>
                                             <UButton size="2xs" color="neutral" variant="ghost" @click="openSubcollectionInNewTab(tab, doc, subCol)">Tab</UButton>
@@ -730,8 +1140,8 @@
                                     Subcolls
                                   </UButton>
 
-                                  <UButton size="xs" variant="ghost" color="neutral" @click="openDocInNewTab(tab, doc)">Open Tab</UButton>
-                                  <UButton size="xs" variant="ghost" color="neutral" @click="editDocumentJSON(tab, doc)">Edit JSON</UButton>
+                                  <UButton size="xs" variant="ghost" color="neutral" @click="openDocInNewTab(tab, doc)">Tab</UButton>
+                                  <UButton size="xs" variant="ghost" color="neutral" @click="editDocumentJSON(tab, doc)">JSON</UButton>
                                   <UButton size="xs" variant="ghost" color="danger" @click="deleteDocumentConfirm(tab, doc)">Delete</UButton>
                                 </td>
                               </tr>
@@ -741,17 +1151,17 @@
                       </div>
 
                       <!-- JSON Viewer -->
-                      <div v-else-if="tab.resultsView === 'json'" class="flex-1 border border-[#2a2d31] bg-[#121315] rounded-lg p-4 overflow-hidden flex flex-col min-h-0">
+                      <div v-else-if="tab.resultsView === 'json'" class="flex-1 border border-white/[0.08] bg-[#0f1118] rounded-xl p-4 overflow-hidden flex flex-col min-h-0 shadow-inner">
                         <textarea 
-                          class="flex-grow flex-1 w-full h-full bg-[#0c0d0e] text-[#9da5ac] font-mono text-xs p-3 rounded border border-[#2a2d31] resize-none outline-none select-text min-h-0" 
+                          class="flex-grow flex-1 w-full h-full bg-[#090a0f] text-zinc-300 font-mono text-xs p-3 rounded-lg border border-white/10 resize-none outline-none select-text min-h-0" 
                           readonly
                         >{{ formatAllDocsJson(tab.documents) }}</textarea>
                       </div>
 
                       <!-- Load More Button -->
-                      <div v-if="tab.nextDocPageToken" class="p-3 bg-[#1d1f22] border-t border-[#2a2d31] flex justify-end rounded-b-lg">
+                      <div v-if="tab.nextDocPageToken" class="p-3 bg-[#141721] border-t border-white/[0.08] flex justify-end rounded-b-xl">
                         <UButton size="xs" color="warning" @click="fetchDocumentsNext(tab)">
-                          Load More
+                          Load More Documents
                         </UButton>
                       </div>
                     </div>
@@ -764,27 +1174,30 @@
       </div>
     </main>
 
-<!-- Modal: Add Service Account -->
+    <!-- Modal: Add Service Account -->
     <UModal v-model:open="showAddSaModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ divide: 'y-divide-[#2a2d31]', background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Add Google Service Account</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">🔑</span>
+                <h3 class="text-base font-bold text-white">Add Google Service Account</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showAddSaModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <p class="text-[#9da5ac]">
+            <p class="text-zinc-400 leading-relaxed">
               Paste the contents of your Google Service Account private key JSON file below. 
-              This file will be loaded <strong>only in-memory</strong> and will not be saved to disk.
+              This file will be loaded <strong class="text-white">only in-memory</strong> and will not be saved to disk.
             </p>
             <UTextarea 
               v-model="newSaJson" 
               placeholder='{ "type": "service_account", "project_id": ... }' 
               rows="10" 
-              class="font-mono text-xs bg-[#0c0d0e]" 
+              class="font-mono text-xs bg-[#090a0f] border-white/10" 
             />
           </div>
 
@@ -801,23 +1214,26 @@
     <!-- Modal: Edit Claims -->
     <UModal v-model:open="showClaimsModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Edit Custom Claims</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-purple-400 text-lg">⚡</span>
+                <h3 class="text-base font-bold text-white">Edit Custom Claims</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showClaimsModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <p class="text-[#9da5ac]">
-              Manage user claims for <strong>{{ activeUser?.email || activeUser?.uid }}</strong>. Custom claims must be valid JSON object or empty.
+            <p class="text-zinc-400">
+              User: <strong class="text-amber-400 font-mono">{{ activeUser?.email || activeUser?.uid }}</strong>. Custom claims must be valid JSON object or empty `{}`.
             </p>
             <UTextarea 
               v-model="claimsJson" 
               placeholder='{ "admin": true, "role": "editor" }' 
-              rows="6" 
-              class="font-mono text-xs bg-[#0c0d0e]" 
+              rows="7" 
+              class="font-mono text-xs bg-[#090a0f] border-white/10" 
             />
           </div>
 
@@ -834,28 +1250,31 @@
     <!-- Modal: Create Auth User -->
     <UModal v-model:open="showCreateUserModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Create Firebase Auth User</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">👤</span>
+                <h3 class="text-base font-bold text-white">Create Firebase Auth User</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showCreateUserModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Email Address</label>
-              <UInput v-model="newUser.email" placeholder="user@example.com" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Email Address</label>
+              <UInput v-model="newUser.email" placeholder="user@example.com" class="w-full bg-[#090a0f]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Display Name</label>
-              <UInput v-model="newUser.displayName" placeholder="John Doe" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Display Name</label>
+              <UInput v-model="newUser.displayName" placeholder="John Doe" class="w-full bg-[#090a0f]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Password</label>
-              <UInput v-model="newUser.password" type="password" placeholder="••••••••" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Password</label>
+              <UInput v-model="newUser.password" type="password" placeholder="••••••••" class="w-full bg-[#090a0f]" />
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-4 pt-1">
               <UCheckbox v-model="newUser.emailVerified" label="Email Verified" />
               <UCheckbox v-model="newUser.disabled" label="Disabled" />
             </div>
@@ -864,7 +1283,7 @@
           <template #footer>
             <div class="flex justify-end gap-2">
               <UButton color="neutral" variant="ghost" @click="showCreateUserModal = false">Cancel</UButton>
-              <UButton color="warning" @click="saveNewUser">Create</UButton>
+              <UButton color="warning" @click="saveNewUser">Create User</UButton>
             </div>
           </template>
         </UCard>
@@ -874,28 +1293,31 @@
     <!-- Modal: Edit Auth User Basic -->
     <UModal v-model:open="showEditUserModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Edit User Profile</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">✏️</span>
+                <h3 class="text-base font-bold text-white">Edit User Profile</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showEditUserModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Email Address</label>
-              <UInput v-model="editUser.email" placeholder="user@example.com" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Email Address</label>
+              <UInput v-model="editUser.email" placeholder="user@example.com" class="w-full bg-[#090a0f]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Display Name</label>
-              <UInput v-model="editUser.displayName" placeholder="John Doe" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Display Name</label>
+              <UInput v-model="editUser.displayName" placeholder="John Doe" class="w-full bg-[#090a0f]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Password (Leave empty to keep unchanged)</label>
-              <UInput v-model="editUser.password" type="password" placeholder="••••••••" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Password (Leave empty to keep unchanged)</label>
+              <UInput v-model="editUser.password" type="password" placeholder="••••••••" class="w-full bg-[#090a0f]" />
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-4 pt-1">
               <UCheckbox v-model="editUser.emailVerified" label="Email Verified" />
               <UCheckbox v-model="editUser.disabled" label="Disabled" />
             </div>
@@ -914,89 +1336,79 @@
     <!-- Modal: Export Auth Users -->
     <UModal v-model:open="showExportAuthModal" :dismissible="false" :ui="{ content: 'sm:max-w-xl' }">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="text-amber-500 text-lg">📤</span>
-                <h3 class="text-base font-semibold leading-6 text-white">Export Auth Users & Custom Claims</h3>
+                <span class="text-amber-400 text-lg">📤</span>
+                <h3 class="text-base font-bold text-white">Export Auth Users & Custom Claims</h3>
               </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showExportAuthModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <div v-if="exportAuthLoading" class="py-8 text-center text-[#9da5ac] space-y-2">
-              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-500" />
+            <div v-if="exportAuthLoading" class="py-8 text-center text-zinc-400 space-y-2">
+              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400" />
               <p>Exporting all Auth users and custom claims from project...</p>
             </div>
 
             <div v-else-if="exportAuthData" class="space-y-4">
               <!-- Summary Card -->
-              <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg flex items-center justify-between">
+              <div class="p-3 bg-[#090a0f] border border-white/10 rounded-xl flex items-center justify-between">
                 <div>
                   <div class="text-sm font-semibold text-white">
                     {{ exportAuthData.count }} Users Ready to Export
                   </div>
-                  <div class="text-[11px] text-[#9da5ac]">
-                    Includes UIDs, emails, social providers, and {{ countUsersWithClaims(exportAuthData.users) }} user(s) with custom claims.
+                  <div class="text-[11px] text-zinc-400">
+                    Includes UIDs, emails, providers, and {{ countUsersWithClaims(exportAuthData.users) }} user(s) with custom claims.
                   </div>
                 </div>
-                <UBadge color="warning" variant="subtle" size="sm">
-                  JSON Format
-                </UBadge>
+                <UBadge color="warning" variant="subtle" size="sm">JSON Format</UBadge>
               </div>
 
               <!-- Password Hash Parameters Section -->
-              <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg space-y-3">
+              <div class="p-3 bg-[#090a0f] border border-white/10 rounded-xl space-y-3">
                 <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-1.5 font-semibold text-amber-500">
+                  <div class="flex items-center gap-1.5 font-semibold text-amber-400">
                     <span>🔑</span>
                     <span>Password Hash Parameters</span>
                   </div>
-                  <span class="text-[10px] text-[#9da5ac]">Optional, but recommended for full migration</span>
+                  <span class="text-[10px] text-zinc-400">Recommended for password migration</span>
                 </div>
-                <p class="text-[#9da5ac] leading-relaxed">
-                  Firebase encrypts passwords using modified SCRYPT. To allow users to sign in with their existing passwords in a target project, state or save your source project's hash parameters below. They will be embedded into the export JSON.
+                <p class="text-zinc-400 leading-relaxed text-[11px]">
+                  Firebase encrypts passwords using modified SCRYPT. To allow users to sign in without password resets in destination projects, configure hash parameters:
                 </p>
 
                 <div class="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <div class="flex items-center justify-between mb-1 text-[11px] font-medium text-zinc-300">
                       <span>Signer Key</span>
                       <code class="text-amber-400 text-[10px]">--hash-key</code>
                     </div>
-                    <UInput v-model="exportAuthHashParams.signerKey" placeholder="e.g. jx8Y...==" class="w-full bg-[#0c0d0e]" />
+                    <UInput v-model="exportAuthHashParams.signerKey" placeholder="Base64 signer key" class="w-full bg-[#141721]" />
                   </div>
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <div class="flex items-center justify-between mb-1 text-[11px] font-medium text-zinc-300">
                       <span>Salt Separator</span>
                       <code class="text-amber-400 text-[10px]">--salt-separator</code>
                     </div>
-                    <UInput v-model="exportAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#0c0d0e]" />
+                    <UInput v-model="exportAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#141721]" />
                   </div>
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <div class="flex items-center justify-between mb-1 text-[11px] font-medium text-zinc-300">
                       <span>Rounds</span>
                       <code class="text-amber-400 text-[10px]">--rounds</code>
                     </div>
-                    <UInput v-model.number="exportAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#0c0d0e]" />
+                    <UInput v-model.number="exportAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#141721]" />
                   </div>
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
+                    <div class="flex items-center justify-between mb-1 text-[11px] font-medium text-zinc-300">
                       <span>Memory Cost</span>
                       <code class="text-amber-400 text-[10px]">--mem-cost</code>
                     </div>
-                    <UInput v-model.number="exportAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#0c0d0e]" />
+                    <UInput v-model.number="exportAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#141721]" />
                   </div>
-                </div>
-
-                <!-- Guidance Box -->
-                <div class="p-2.5 bg-[#0c0d0e] border border-[#2a2d31] rounded text-[11px] text-[#9da5ac] space-y-1">
-                  <div class="font-semibold text-white">💡 How to find these parameters in Firebase Console:</div>
-                  <div>1. Go to Firebase Console → <strong>Authentication</strong> → <strong>Users</strong> tab.</div>
-                  <div>2. Click the <strong>three vertical dots</strong> (top right of user table).</div>
-                  <div>3. Select <strong>Password hash parameters</strong> and copy the values above.</div>
                 </div>
               </div>
             </div>
@@ -1004,17 +1416,17 @@
 
           <template #footer>
             <div class="flex justify-between items-center w-full">
-              <div class="text-[11px] text-[#606870] truncate max-w-[200px]">
+              <div class="text-[11px] text-zinc-500 truncate max-w-[200px]">
                 Custom claims & hashes preserved.
               </div>
               <div class="flex items-center gap-2 whitespace-nowrap">
-                <UButton color="neutral" variant="ghost" size="sm" class="whitespace-nowrap shrink-0" @click="showExportAuthModal = false">
+                <UButton color="neutral" variant="ghost" size="sm" @click="showExportAuthModal = false">
                   Cancel
                 </UButton>
-                <UButton color="neutral" variant="subtle" size="sm" icon="i-heroicons-clipboard-document" class="whitespace-nowrap shrink-0" @click="copyExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
+                <UButton color="neutral" variant="subtle" size="sm" icon="i-heroicons-clipboard-document" @click="copyExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
                   Copy JSON
                 </UButton>
-                <UButton color="warning" size="sm" icon="i-heroicons-arrow-down-tray" class="whitespace-nowrap shrink-0 font-medium" @click="downloadExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
+                <UButton color="warning" size="sm" icon="i-heroicons-arrow-down-tray" class="font-semibold" @click="downloadExportAuthJson" :disabled="exportAuthLoading || !exportAuthData">
                   Download JSON
                 </UButton>
               </div>
@@ -1027,22 +1439,21 @@
     <!-- Modal: Import Auth Users -->
     <UModal v-model:open="showImportAuthModal" :dismissible="false" :ui="{ content: 'sm:max-w-xl' }">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="text-amber-500 text-lg">📥</span>
-                <h3 class="text-base font-semibold leading-6 text-white">Import Auth Users & Custom Claims</h3>
+                <span class="text-amber-400 text-lg">📥</span>
+                <h3 class="text-base font-bold text-white">Import Auth Users & Custom Claims</h3>
               </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showImportAuthModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <!-- Step 1: Select JSON File or Paste -->
             <div>
               <div class="flex justify-between items-center mb-1.5">
-                <label class="font-semibold text-[#c0c6cb]">1. Load Users Data (JSON)</label>
+                <label class="font-semibold text-zinc-300">1. Load Users Data (JSON)</label>
                 <input type="file" id="auth-import-file-input" accept=".json" class="hidden" @change="onImportFileSelected" />
                 <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-folder-open" @click="triggerImportFilePicker">
                   Upload JSON File
@@ -1050,21 +1461,21 @@
               </div>
               <UTextarea
                 v-model="importAuthJsonInput"
-                placeholder='Paste JSON here or click "Upload JSON File". Supports mikhaz-fire export or Firebase CLI export format.'
+                placeholder='Paste JSON here or upload file. Supports Mikhaz Fire and Firebase CLI formats.'
                 rows="5"
-                class="w-full font-mono text-[11px] bg-[#0c0d0e]"
+                class="w-full font-mono text-[11px] bg-[#090a0f] border-white/10"
                 @input="parseImportJsonInput"
               />
             </div>
 
             <!-- JSON Parsing Status Summary -->
-            <div v-if="parsedImportSummary" class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg flex items-center justify-between">
+            <div v-if="parsedImportSummary" class="p-3 bg-[#090a0f] border border-white/10 rounded-xl flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold text-white">
                   {{ parsedImportSummary.userCount }} User(s) Detected
                 </div>
-                <div class="text-[11px] text-[#9da5ac]">
-                  {{ parsedImportSummary.claimsCount }} user(s) with custom claims &middot; {{ parsedImportSummary.hashCount }} user(s) with password hashes.
+                <div class="text-[11px] text-zinc-400">
+                  {{ parsedImportSummary.claimsCount }} with claims &middot; {{ parsedImportSummary.hashCount }} with password hashes.
                 </div>
               </div>
               <UBadge :color="parsedImportSummary.userCount > 0 ? 'success' : 'danger'" variant="subtle" size="sm">
@@ -1072,10 +1483,10 @@
               </UBadge>
             </div>
 
-            <!-- Step 2: Password Hash Parameters -->
-            <div class="p-3 bg-[#181a1d] border border-[#2a2d31] rounded-lg space-y-3">
+            <!-- Hash Parameters Section -->
+            <div class="p-3 bg-[#090a0f] border border-white/10 rounded-xl space-y-3">
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5 font-semibold text-amber-500">
+                <div class="flex items-center gap-1.5 font-semibold text-amber-400">
                   <span>🔐</span>
                   <span>2. Password Hash Parameters</span>
                 </div>
@@ -1083,110 +1494,68 @@
                   ✓ Auto-filled from JSON
                 </span>
               </div>
-              <p class="text-[#9da5ac] leading-relaxed">
-                If imported users contain password hashes, fill in or paste the source project's hashing parameters below so passwords migrate without forcing resets.
-              </p>
 
               <div class="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
                 <div>
-                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
-                    <span>Hash Algorithm</span>
-                    <code class="text-amber-400 text-[10px]">--hash-algo</code>
-                  </div>
-                  <select v-model="importAuthHashParams.hashAlgorithm" class="w-full bg-[#0c0d0e] border border-[#2a2d31] rounded-md px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                  <div class="mb-1 text-[11px] font-medium text-zinc-300">Hash Algorithm</div>
+                  <select v-model="importAuthHashParams.hashAlgorithm" class="w-full bg-[#141721] border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
                     <option value="SCRYPT">SCRYPT (Firebase Modified)</option>
                     <option value="STANDARD_SCRYPT">STANDARD_SCRYPT</option>
                     <option value="BCRYPT">BCRYPT</option>
                     <option value="PBKDF2_SHA256">PBKDF2_SHA256</option>
-                    <option value="HMAC_SHA256">HMAC_SHA256</option>
-                    <option value="HMAC_SHA1">HMAC_SHA1</option>
-                    <option value="HMAC_MD5">HMAC_MD5</option>
-                    <option value="MD5">MD5</option>
-                    <option value="SHA1">SHA1</option>
                     <option value="SHA256">SHA256</option>
-                    <option value="SHA512">SHA512</option>
                   </select>
                 </div>
                 <div>
-                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
-                    <span>Signer Key</span>
-                    <code class="text-amber-400 text-[10px]">--hash-key</code>
-                  </div>
-                  <UInput v-model="importAuthHashParams.signerKey" placeholder="Base64 signer key from source project" class="w-full bg-[#0c0d0e]" />
+                  <div class="mb-1 text-[11px] font-medium text-zinc-300">Signer Key</div>
+                  <UInput v-model="importAuthHashParams.signerKey" placeholder="Base64 signer key" class="w-full bg-[#141721]" />
                 </div>
                 <div>
-                  <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
-                    <span>Salt Separator</span>
-                    <code class="text-amber-400 text-[10px]">--salt-separator</code>
-                  </div>
-                  <UInput v-model="importAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#0c0d0e]" />
+                  <div class="mb-1 text-[11px] font-medium text-zinc-300">Salt Separator</div>
+                  <UInput v-model="importAuthHashParams.saltSeparator" placeholder="Bw==" class="w-full bg-[#141721]" />
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
-                      <span>Rounds</span>
-                    </div>
-                    <UInput v-model.number="importAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#0c0d0e]" />
+                    <div class="mb-1 text-[11px] font-medium text-zinc-300">Rounds</div>
+                    <UInput v-model.number="importAuthHashParams.rounds" type="number" placeholder="8" class="w-full bg-[#141721]" />
                   </div>
                   <div>
-                    <div class="flex items-center justify-between min-h-[20px] mb-1 text-[11px] font-medium text-[#c0c6cb]">
-                      <span>Memory Cost</span>
-                    </div>
-                    <UInput v-model.number="importAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#0c0d0e]" />
+                    <div class="mb-1 text-[11px] font-medium text-zinc-300">Memory Cost</div>
+                    <UInput v-model.number="importAuthHashParams.memoryCost" type="number" placeholder="14" class="w-full bg-[#141721]" />
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Import Results Card -->
-            <div v-if="importAuthResult" class="p-3 border rounded-lg space-y-2" :class="importAuthResult.success ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/20 border-rose-500/30'">
+            <div v-if="importAuthResult" class="p-3 border rounded-xl space-y-2" :class="importAuthResult.success ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/20 border-rose-500/30'">
               <div class="flex items-center justify-between">
                 <div class="font-semibold text-white flex items-center gap-2">
                   <span :class="importAuthResult.success ? 'text-emerald-400' : 'text-amber-400'">
                     {{ importAuthResult.success ? '✓ Import Completed' : '⚠️ Import Completed with Issues' }}
                   </span>
                 </div>
-                <div class="text-[11px] text-[#9da5ac]">
+                <div class="text-[11px] text-zinc-400">
                   {{ importAuthResult.importedCount }} imported &middot; {{ importAuthResult.failedCount }} failed
                 </div>
-              </div>
-
-              <!-- Error details table if any -->
-              <div v-if="importAuthResult.errors && importAuthResult.errors.length > 0" class="max-h-36 overflow-auto border border-[#2a2d31] rounded">
-                <table class="w-full text-left text-[11px]">
-                  <thead class="bg-[#121315] text-[#9da5ac]">
-                    <tr>
-                      <th class="p-1.5">Index</th>
-                      <th class="p-1.5">Email</th>
-                      <th class="p-1.5">Error Message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(err, idx) in importAuthResult.errors" :key="idx" class="border-t border-[#2a2d31] text-rose-300">
-                      <td class="p-1.5 font-mono">{{ err.index }}</td>
-                      <td class="p-1.5 font-mono">{{ err.email || '-' }}</td>
-                      <td class="p-1.5">{{ err.message }}</td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
 
           <template #footer>
             <div class="flex justify-between items-center w-full">
-              <div class="text-[11px] text-[#606870] truncate max-w-[200px]">
+              <div class="text-[11px] text-zinc-500 truncate max-w-[200px]">
                 Target: {{ activeTabContext?.projectId || '' }}
               </div>
               <div class="flex items-center gap-2 whitespace-nowrap">
-                <UButton color="neutral" variant="ghost" size="sm" class="whitespace-nowrap shrink-0" @click="showImportAuthModal = false">
+                <UButton color="neutral" variant="ghost" size="sm" @click="showImportAuthModal = false">
                   Cancel
                 </UButton>
                 <UButton
                   color="warning"
                   size="sm"
                   icon="i-heroicons-arrow-down-tray"
-                  class="whitespace-nowrap shrink-0 font-medium"
+                  class="font-semibold"
                   :loading="importAuthLoading"
                   :disabled="importAuthLoading || !parsedImportSummary || parsedImportSummary.userCount === 0"
                   @click="runImportAuthUsers(activeTabContext)"
@@ -1201,30 +1570,33 @@
     </UModal>
 
     <!-- Modal: Document Details JSON Viewer/Editor -->
-    <UModal v-model:open="showDocModal" :dismissible="false" fullscreen :ui="{ content: 'h-full flex flex-col bg-[#0c0d0e]' }">
+    <UModal v-model:open="showDocModal" :dismissible="false" fullscreen :ui="{ content: 'h-full flex flex-col bg-[#090a0f]' }">
       <template #content>
-        <UCard :ui="{ root: 'h-full flex flex-col bg-[#0c0d0e] border border-[#2a2d31]', body: 'flex-grow overflow-hidden flex flex-col h-full min-h-0' }">
+        <UCard :ui="{ root: 'h-full flex flex-col bg-[#090a0f] border border-white/10', body: 'flex-grow overflow-hidden flex flex-col h-full min-h-0' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Document Editor JSON</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">📄</span>
+                <h3 class="text-base font-bold text-white">Document JSON Editor</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showDocModal = false" />
             </div>
           </template>
 
-          <div class="space-y-4 p-4 text-xs flex flex-col flex-grow flex-1 h-full min-h-0 bg-[#0c0d0e]">
-            <div class="bg-[#0c0d0e] p-2 rounded text-[11px] border border-[#2a2d31] text-[#9da5ac]">
-              Path: <strong class="text-amber-500 font-mono">{{ activeDocPath }}</strong>
+          <div class="space-y-3 p-4 text-xs flex flex-col flex-grow flex-1 h-full min-h-0 bg-[#090a0f]">
+            <div class="bg-[#141721] p-2.5 rounded-lg border border-white/10 text-zinc-300 flex items-center justify-between">
+              <div>Path: <strong class="text-amber-400 font-mono">{{ activeDocPath }}</strong></div>
+              <UButton size="2xs" color="neutral" variant="subtle" @click="formatActiveDocJson">Beautify JSON</UButton>
             </div>
-            <label class="block text-xs font-semibold text-[#9da5ac]">Fields Data JSON (Raw Key-Value pairs)</label>
             <textarea 
               v-model="activeDocJson" 
               placeholder='{ "title": "First Post", "likes": 42 }' 
-              class="flex-1 w-full bg-[#0c0d0e] text-[#e3e6e8] font-mono text-xs p-4 rounded border border-[#2a2d31] resize-none outline-none select-text min-h-0 h-full"
+              class="flex-1 w-full bg-[#141721] text-zinc-200 font-mono text-xs p-4 rounded-xl border border-white/10 resize-none outline-none select-text min-h-0 h-full focus:border-amber-500"
             ></textarea>
           </div>
 
           <template #footer>
-            <div class="flex justify-end gap-2 bg-[#0c0d0e]">
+            <div class="flex justify-end gap-2 bg-[#090a0f]">
               <UButton color="neutral" variant="ghost" @click="showDocModal = false">Cancel</UButton>
               <UButton color="warning" @click="saveDocFromJSON">Save Document</UButton>
             </div>
@@ -1236,26 +1608,29 @@
     <!-- Modal: Add Document -->
     <UModal v-model:open="showAddDocModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Create New Document</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">+</span>
+                <h3 class="text-base font-bold text-white">Create New Document</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showAddDocModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Document ID (optional, blank auto-generates ID)</label>
-              <UInput v-model="newDocId" placeholder="my-custom-id" class="w-full bg-[#0c0d0e]" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Document ID (optional, blank auto-generates ID)</label>
+              <UInput v-model="newDocId" placeholder="my-custom-doc-id" class="w-full bg-[#090a0f]" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Fields Initial JSON</label>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Fields Initial JSON</label>
               <UTextarea 
                 v-model="newDocFieldsJson" 
-                placeholder='{ "createdAt": "2026-07-02T10:00:00Z" }' 
+                placeholder='{ "title": "New Doc", "createdAt": "2026-09-05T00:00:00Z" }' 
                 rows="6" 
-                class="font-mono text-xs bg-[#0c0d0e]" 
+                class="font-mono text-xs bg-[#090a0f] border-white/10" 
               />
             </div>
           </div>
@@ -1273,61 +1648,64 @@
     <!-- Modal: Copy Node Wizard -->
     <UModal v-model:open="showCopyModal" :dismissible="false">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Firestore Copy Wizard</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">🔄</span>
+                <h3 class="text-base font-bold text-white">Firestore Copy Wizard</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showCopyModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <p class="text-[#9da5ac]">
+            <p class="text-zinc-400">
               Copy collections or documents from this project to another project safely. Checks for conflicts before execution.
             </p>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Source Account & Project</label>
-              <div class="bg-[#0c0d0e] p-2 rounded text-[#e3e6e8] border border-[#2a2d31] font-mono">
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Source Account & Project</label>
+              <div class="bg-[#090a0f] p-2 rounded-lg text-white border border-white/10 font-mono">
                 {{ activeCopySource }}
               </div>
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Source Path (Collection or Doc)</label>
-              <UInput v-model="copyWizard.path" placeholder="posts" class="w-full bg-[#0c0d0e] font-mono" />
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Source Path (Collection or Doc)</label>
+              <UInput v-model="copyWizard.path" placeholder="posts" class="w-full bg-[#090a0f] font-mono" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Copy Node Type</label>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Copy Node Type</label>
               <USelect 
                 v-model="copyWizard.type" 
                 :items="['collection', 'document']" 
-                class="w-full bg-[#0c0d0e]"
+                class="w-full bg-[#090a0f]"
               />
             </div>
             
-            <div class="border-t border-[#2a2d31] pt-3">
+            <div class="border-t border-white/10 pt-3">
               <label class="block text-xs font-semibold text-white mb-2">Destination Configuration</label>
               <div class="space-y-2">
                 <div>
-                  <label class="block text-[10px] text-[#9da5ac] mb-1">Dest Account Email</label>
+                  <label class="block text-[10px] text-zinc-400 mb-1">Dest Account Email</label>
                   <USelect 
                     v-model="copyWizard.destEmail" 
                     :items="accounts.map(a => a.email)" 
-                    class="w-full bg-[#0c0d0e]"
+                    class="w-full bg-[#090a0f]"
                     @change="loadDestProjects"
                   />
                 </div>
                 <div>
-                  <label class="block text-[10px] text-[#9da5ac] mb-1">Dest Project ID</label>
+                  <label class="block text-[10px] text-zinc-400 mb-1">Dest Project ID</label>
                   <USelect 
                     v-model="copyWizard.destProjectId" 
                     :items="destProjects.map(p => p.projectId)" 
-                    class="w-full bg-[#0c0d0e]"
+                    class="w-full bg-[#090a0f]"
                   />
                 </div>
               </div>
             </div>
 
-            <div class="flex items-center gap-4 border-t border-[#2a2d31] pt-3">
+            <div class="flex items-center gap-4 border-t border-white/10 pt-3">
               <UCheckbox v-model="copyWizard.overwrite" label="Overwrite Conflicts" />
               <UCheckbox v-model="copyWizard.recursive" label="Copy Subcollections" />
             </div>
@@ -1346,23 +1724,26 @@
     <!-- Modal: Export Results -->
     <UModal v-model:open="showExportModal" :dismissible="false" size="md">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: 'border-[#2a2d31]' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-base font-semibold leading-6 text-white">Export Results</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">📤</span>
+                <h3 class="text-base font-bold text-white">Export Results</h3>
+              </div>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showExportModal = false" />
             </div>
           </template>
 
           <div class="space-y-4 p-2 text-xs">
-            <p class="text-[#9da5ac]">
+            <p class="text-zinc-400">
               Export the current list of loaded documents. You can configure the format and options below.
             </p>
             
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-semibold text-[#9da5ac] mb-1">Export Format</label>
-                <USelect v-model="exportConfig.format" :items="['JSON', 'CSV']" class="w-full bg-[#0c0d0e]" @change="updateExportPreview" />
+                <label class="block text-xs font-semibold text-zinc-300 mb-1">Export Format</label>
+                <USelect v-model="exportConfig.format" :items="['JSON', 'CSV']" class="w-full bg-[#090a0f]" @change="updateExportPreview" />
               </div>
               <div class="flex flex-col gap-2 justify-end pb-1">
                 <UCheckbox v-model="exportConfig.includeIds" label="Include Document IDs" @change="updateExportPreview" />
@@ -1378,7 +1759,7 @@
               <label class="block text-xs font-semibold text-white">Preview (First 5,000 characters)</label>
               <textarea 
                 v-model="exportPreviewText"
-                class="w-full bg-[#0c0d0e] text-[#9da5ac] border border-[#2a2d31] font-mono text-[10px] p-2 rounded resize-none select-text"
+                class="w-full bg-[#090a0f] text-zinc-300 border border-white/10 font-mono text-[10px] p-2 rounded-lg resize-none select-text"
                 rows="8"
                 readonly
               />
@@ -1399,16 +1780,14 @@
     <!-- Modal: Notification / Error Details -->
     <UModal v-model:open="showNotificationModal" size="md">
       <template #content>
-        <UCard :ui="{ background: 'bg-[#121315]', border: notificationModalType === 'error' ? 'border-[#ea4335]/20' : 'border-[#34a853]/20' }">
+        <UCard :ui="{ background: 'bg-[#141721]', border: notificationModalType === 'error' ? 'border-rose-500/30' : 'border-emerald-500/30' }">
           <template #header>
             <div class="flex items-center justify-between">
               <h3 
-                class="text-base font-semibold leading-6 flex items-center gap-2"
-                :class="notificationModalType === 'error' ? 'text-[#ea4335]' : 'text-[#34a853]'"
+                class="text-base font-bold leading-6 flex items-center gap-2"
+                :class="notificationModalType === 'error' ? 'text-rose-400' : 'text-emerald-400'"
               >
-                <span 
-                  :class="notificationModalType === 'error' ? 'i-heroicons-exclamation-triangle w-5 h-5 flex-shrink-0' : 'i-heroicons-check-circle w-5 h-5 flex-shrink-0'" 
-                />
+                <span>{{ notificationModalType === 'error' ? '⚠️' : '✓' }}</span>
                 {{ notificationModalTitle || (notificationModalType === 'error' ? 'Error' : 'Notification') }}
               </h3>
               <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showNotificationModal = false" />
@@ -1417,7 +1796,7 @@
 
           <div class="space-y-3 p-2 text-xs">
             <div 
-              class="bg-[#0c0d0e] text-[#e3e6e8] border border-[#2a2d31] font-mono text-[11px] p-4 rounded overflow-auto select-text max-h-[350px] whitespace-pre-wrap break-all"
+              class="bg-[#090a0f] text-zinc-200 border border-white/10 font-mono text-[11px] p-4 rounded-xl overflow-auto select-text max-h-[350px] whitespace-pre-wrap break-all"
             >
               {{ notificationModalMessage }}
             </div>
@@ -1437,12 +1816,21 @@
       </template>
     </UModal>
 
+    <!-- Floating Toast Notification -->
+    <div 
+      v-if="toastMessage" 
+      class="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-[#181b26] border border-amber-500/40 text-white text-xs shadow-2xl flex items-center gap-2 animate-fade-in"
+    >
+      <span class="text-amber-400 font-bold">✓</span>
+      <span>{{ toastMessage }}</span>
+    </div>
+
     </div>
   </UApp>
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 
 // Import Wails runtime calls
 import {
@@ -1475,6 +1863,69 @@ const expandedAccount = ref(null)
 const scanning = ref(false)
 const loadingProjects = ref(false)
 const loggingInGoogle = ref(false)
+const sidebarProjectFilter = ref('')
+const pinnedProjects = ref([])
+
+// Toast state
+const toastMessage = ref('')
+let toastTimer = null
+
+function showToast(msg) {
+  toastMessage.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+  }, 2500)
+}
+
+function copyText(text, label = 'Copied to clipboard!') {
+  if (!text) return
+  navigator.clipboard.writeText(String(text))
+  showToast(label)
+}
+
+// Local Storage for Pinned Projects
+function loadPinnedProjects() {
+  try {
+    const saved = localStorage.getItem('mikhaz_pinned_projects')
+    if (saved) pinnedProjects.value = JSON.parse(saved)
+  } catch (e) {}
+}
+
+function togglePinProject(project) {
+  const idx = pinnedProjects.value.findIndex(p => p.projectId === project.projectId)
+  if (idx >= 0) {
+    pinnedProjects.value.splice(idx, 1)
+    showToast(`Unpinned ${project.displayName || project.projectId}`)
+  } else {
+    pinnedProjects.value.push({
+      projectId: project.projectId,
+      displayName: project.displayName || project.projectId,
+      email: project.email || expandedAccount.value || ''
+    })
+    showToast(`Pinned ${project.displayName || project.projectId}!`)
+  }
+  try {
+    localStorage.setItem('mikhaz_pinned_projects', JSON.stringify(pinnedProjects.value))
+  } catch (e) {}
+}
+
+function isPinned(projectId) {
+  return pinnedProjects.value.some(p => p.projectId === projectId)
+}
+
+const filteredAccounts = computed(() => {
+  return accounts.value
+})
+
+const filteredProjects = computed(() => {
+  if (!sidebarProjectFilter.value.trim()) return projects.value
+  const q = sidebarProjectFilter.value.trim().toLowerCase()
+  return projects.value.filter(p => 
+    p.projectId.toLowerCase().includes(q) || 
+    (p.displayName && p.displayName.toLowerCase().includes(q))
+  )
+})
 
 // Tabs State
 const openTabs = ref([])
@@ -1498,7 +1949,7 @@ const showAddSaModal = ref(false)
 const newSaJson = ref('')
 const savingSa = ref(false)
 
-// Custom alert/notification modal state
+// Custom notification modal state
 const showNotificationModal = ref(false)
 const notificationModalTitle = ref('')
 const notificationModalMessage = ref('')
@@ -1519,7 +1970,6 @@ function showNotification(title, message, type = 'error') {
   showNotificationModal.value = true
 }
 
-// Shadow global window.alert to automatically show in the custom scrollable modal
 function alert(message) {
   const msgStr = String(message)
   const isSuccess = msgStr.toLowerCase().includes('success') || 
@@ -1554,7 +2004,6 @@ const importAuthHashParams = reactive({
 })
 const importAuthResult = ref(null)
 const parsedImportSummary = ref(null)
-const importFileInput = ref(null)
 
 const activeUser = ref(null)
 const activeTabContext = ref(null)
@@ -1598,6 +2047,7 @@ const copyWizard = reactive({
 })
 
 onMounted(() => {
+  loadPinnedProjects()
   refreshAccounts()
 })
 
@@ -1656,10 +2106,11 @@ async function saveServiceAccount() {
   if (!newSaJson.value.trim()) return
   savingSa.value = true
   try {
-    const email = await AddServiceAccount(newSaJson.value.trim())
+    await AddServiceAccount(newSaJson.value.trim())
     showAddSaModal.value = false
     newSaJson.value = ''
     refreshAccounts()
+    showToast('Service account added successfully!')
   } catch (err) {
     alert('Failed to add service account: ' + err)
   } finally {
@@ -1669,27 +2120,43 @@ async function saveServiceAccount() {
 
 function getTabTitle(tab) {
   if (tab.type === 'auth') {
-    return `Auth: ${tab.projectId}`;
+    return `Auth: ${tab.projectId}`
   }
   if (tab.type === 'firestore') {
     if (tab.activeDocPath) {
-      const parts = tab.activeDocPath.split('/');
-      return `Doc: ${parts[parts.length - 1]}`;
+      const parts = tab.activeDocPath.split('/')
+      return `Doc: ${parts[parts.length - 1]}`
     }
     if (tab.activeCollection) {
-      return `Col: ${tab.activeCollection}`;
+      return `Col: ${tab.activeCollection}`
     }
-    return `Firestore: ${tab.projectId}`;
+    return `Firestore: ${tab.projectId}`
   }
-  return tab.type;
+  return tab.type
+}
+
+function getTabFullTitle(tab) {
+  if (tab.type === 'auth') {
+    return `Auth: ${tab.projectId} (${tab.email})`
+  }
+  if (tab.type === 'firestore') {
+    if (tab.activeDocPath) {
+      return `Document: ${tab.activeDocPath} (${tab.projectId})`
+    }
+    if (tab.activeCollection) {
+      return `Collection: ${tab.activeCollection} (${tab.projectId})`
+    }
+    return `Firestore: ${tab.projectId} (${tab.email})`
+  }
+  return tab.type
 }
 
 function openCollectionInNewTab(parentTab, colName) {
-  const tabId = `firestore-col-${parentTab.email}-${parentTab.projectId}-${colName}`;
-  const existingTab = openTabs.value.find(t => t.id === tabId);
+  const tabId = `firestore-col-${parentTab.email}-${parentTab.projectId}-${colName.replace(/\//g, '-')}`
+  const existingTab = openTabs.value.find(t => t.id === tabId)
   
   if (existingTab) {
-    activeTabId.value = tabId;
+    activeTabId.value = tabId
   } else {
     const newTab = {
       id: tabId,
@@ -1701,6 +2168,8 @@ function openCollectionInNewTab(parentTab, colName) {
       users: [],
       nextPageToken: '',
       collections: parentTab.collections || [],
+      collectionsCollapsed: false,
+      collectionSearch: '',
       activeCollection: colName,
       activeDocPath: '',
       documents: [],
@@ -1708,8 +2177,9 @@ function openCollectionInNewTab(parentTab, colName) {
       loadingCollections: false,
       loadingDocuments: false,
       firestoreView: 'explorer',
-      resultsView: 'table',
+      resultsView: parentTab.resultsView || 'table',
       selectedDocNames: [],
+      queryExpanded: true,
       queryMode: 'simple',
       queryDocId: '',
       queryFilterField: '',
@@ -1719,15 +2189,19 @@ function openCollectionInNewTab(parentTab, colName) {
       querySortDir: 'asc',
       queryLimit: 50,
       queryPreset: 'Basic Fetch',
-      queryScript: `// Query with JavaScript using the Firebase Admin SDK\n// See examples at https://firefoo.app/go/firestore-js-query\nasync function run() {\n  const query = await db.collection("${colName}")\n    .limit(50)\n    .get();\n  return query;\n}`,
+      queryScript: `// Query with JavaScript using the Firebase Admin SDK\nasync function run() {\n  const query = await db.collection("${colName}")\n    .limit(50)\n    .get();\n  return query;\n}`,
       queryOutput: '',
       runningQuery: false
-    };
-    openTabs.value.push(newTab);
-    const reactiveTab = openTabs.value[openTabs.value.length - 1];
-    activeTabId.value = tabId;
-    fetchDocuments(reactiveTab);
+    }
+    openTabs.value.push(newTab)
+    const reactiveTab = openTabs.value[openTabs.value.length - 1]
+    activeTabId.value = tabId
+    fetchDocuments(reactiveTab)
   }
+}
+
+function openCollectionTab(parentTab, colName) {
+  openCollectionInNewTab(parentTab, colName)
 }
 
 // Tabs Operations
@@ -1744,18 +2218,23 @@ function openTab(type, email, projectId) {
       email,
       projectId,
       searchQuery: '',
+      statusFilter: 'all',
       loading: false,
       users: [],
       nextPageToken: '',
       collections: [],
+      collectionsCollapsed: false,
+      collectionSearch: '',
       activeCollection: '',
+      activeDocPath: '',
       documents: [],
       nextDocPageToken: '',
       loadingCollections: false,
       loadingDocuments: false,
-      firestoreView: 'explorer', // 'explorer' or 'query'
-      resultsView: 'tree', // 'tree' | 'table' | 'json'
+      firestoreView: 'explorer',
+      resultsView: 'table',
       selectedDocNames: [],
+      queryExpanded: true,
       queryMode: 'simple',
       queryDocId: '',
       queryFilterField: '',
@@ -1769,8 +2248,7 @@ function openTab(type, email, projectId) {
       queryOutput: '',
       runningQuery: false,
       authSortField: 'email',
-      authSortDir: 'asc',
-      authFilterEmail: ''
+      authSortDir: 'asc'
     }
     openTabs.value.push(newTab)
     const reactiveTab = openTabs.value[openTabs.value.length - 1]
@@ -1792,15 +2270,38 @@ function closeTab(tabId) {
   }
 }
 
+function getUserInitial(user) {
+  if (user.displayName) return user.displayName.charAt(0).toUpperCase()
+  if (user.email) return user.email.charAt(0).toUpperCase()
+  return 'U'
+}
+
+function hasCustomClaims(user) {
+  return (user.customClaims && Object.keys(user.customClaims).length > 0) || (user.customAttributes && user.customAttributes !== '{}')
+}
+
 function getFilteredSortedUsers(tab) {
   if (!tab || !tab.users) return []
   
   let result = [...tab.users]
   
-  // Local email filter
-  if (tab.authFilterEmail && tab.authFilterEmail.trim()) {
-    const filterText = tab.authFilterEmail.trim().toLowerCase()
-    result = result.filter(u => u.email && u.email.toLowerCase().includes(filterText))
+  // Status filter pills
+  if (tab.statusFilter === 'active') {
+    result = result.filter(u => !u.disabled)
+  } else if (tab.statusFilter === 'disabled') {
+    result = result.filter(u => u.disabled)
+  } else if (tab.statusFilter === 'claims') {
+    result = result.filter(u => hasCustomClaims(u))
+  }
+
+  // Unified instant search
+  if (tab.searchQuery && tab.searchQuery.trim()) {
+    const q = tab.searchQuery.trim().toLowerCase()
+    result = result.filter(u => 
+      (u.uid && u.uid.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.displayName && u.displayName.toLowerCase().includes(q))
+    )
   }
   
   // Sorting
@@ -1848,7 +2349,7 @@ async function fetchAuthUsers(tab) {
   tab.users = []
   tab.nextPageToken = ''
   try {
-    const res = await ListAuthUsers(tab.email, tab.projectId, 50, '', tab.searchQuery)
+    const res = await ListAuthUsers(tab.email, tab.projectId, 50, '', tab.searchQuery || '')
     if (res) {
       tab.users = res.users || []
       tab.nextPageToken = res.nextPageToken || ''
@@ -1864,7 +2365,7 @@ async function fetchAuthUsersNext(tab) {
   if (!tab.nextPageToken) return
   tab.loading = true
   try {
-    const res = await ListAuthUsers(tab.email, tab.projectId, 50, tab.nextPageToken, tab.searchQuery)
+    const res = await ListAuthUsers(tab.email, tab.projectId, 50, tab.nextPageToken, tab.searchQuery || '')
     if (res) {
       tab.users.push(...(res.users || []))
       tab.nextPageToken = res.nextPageToken || ''
@@ -1878,7 +2379,7 @@ async function fetchAuthUsersNext(tab) {
 
 function countUsersWithClaims(users) {
   if (!users) return 0
-  return users.filter(u => (u.customClaims && Object.keys(u.customClaims).length > 0) || u.customAttributes).length
+  return users.filter(u => hasCustomClaims(u)).length
 }
 
 async function openExportAuthModal(tab) {
@@ -1915,7 +2416,7 @@ function copyExportAuthJson() {
   }
   const jsonStr = JSON.stringify(fullExport, null, 2)
   navigator.clipboard.writeText(jsonStr)
-  showNotification('Success', 'Exported users & hash parameters copied to clipboard!', 'success')
+  showToast('Users & hash parameters copied to clipboard!')
 }
 
 function downloadExportAuthJson() {
@@ -1955,9 +2456,7 @@ function openImportAuthModal(tab) {
 
 function triggerImportFilePicker() {
   const el = document.getElementById('auth-import-file-input')
-  if (el) {
-    el.click()
-  }
+  if (el) el.click()
 }
 
 function onImportFileSelected(event) {
@@ -1983,12 +2482,8 @@ function parseImportJsonInput() {
     if (Array.isArray(raw)) {
       userArray = raw
     } else if (raw && typeof raw === 'object') {
-      if (Array.isArray(raw.users)) {
-        userArray = raw.users
-      }
-      if (raw.hashParameters) {
-        embeddedParams = raw.hashParameters
-      }
+      if (Array.isArray(raw.users)) userArray = raw.users
+      if (raw.hashParameters) embeddedParams = raw.hashParameters
     }
 
     if (embeddedParams) {
@@ -2000,7 +2495,7 @@ function parseImportJsonInput() {
     }
 
     const userCount = userArray.length
-    const claimsCount = userArray.filter(u => (u.customClaims && Object.keys(u.customClaims).length > 0) || u.customAttributes).length
+    const claimsCount = userArray.filter(u => hasCustomClaims(u)).length
     const hashCount = userArray.filter(u => u.passwordHash).length
 
     parsedImportSummary.value = {
@@ -2034,7 +2529,7 @@ async function runImportAuthUsers(tab) {
     const res = await ImportAuthUsers(tab.email, tab.projectId, req)
     importAuthResult.value = res
     if (res.success || res.importedCount > 0) {
-      showNotification('Success', `Imported ${res.importedCount} user(s) into ${tab.projectId}!`, 'success')
+      showToast(`Imported ${res.importedCount} user(s) successfully!`)
       fetchAuthUsers(tab)
     } else {
       showNotification('Import Failed', `Failed to import users. Check details in modal.`, 'error')
@@ -2069,6 +2564,7 @@ async function saveNewUser() {
     }
     await CreateAuthUser(tab.email, tab.projectId, req)
     showCreateUserModal.value = false
+    showToast('User created successfully!')
     fetchAuthUsers(tab)
   } catch (err) {
     alert('Failed to create user: ' + err)
@@ -2101,6 +2597,7 @@ async function saveUserEdit() {
     }
     await UpdateAuthUser(tab.email, tab.projectId, req)
     showEditUserModal.value = false
+    showToast('User updated successfully!')
     fetchAuthUsers(tab)
   } catch (err) {
     alert('Failed to update user: ' + err)
@@ -2136,6 +2633,7 @@ async function saveCustomClaims() {
     }
     await UpdateAuthUser(tab.email, tab.projectId, req)
     showClaimsModal.value = false
+    showToast('Claims saved successfully!')
     fetchAuthUsers(tab)
   } catch (err) {
     alert('Failed to save claims: ' + err)
@@ -2146,6 +2644,7 @@ async function deleteUserConfirm(tab, user) {
   if (confirm(`Are you sure you want to delete user ${user.email || user.uid}?`)) {
     try {
       await DeleteAuthUser(tab.email, tab.projectId, user.uid)
+      showToast('User deleted!')
       fetchAuthUsers(tab)
     } catch (err) {
       alert('Failed to delete user: ' + err)
@@ -2154,6 +2653,13 @@ async function deleteUserConfirm(tab, user) {
 }
 
 // Firestore Actions
+function getFilteredCollections(tab) {
+  if (!tab.collections) return []
+  if (!tab.collectionSearch || !tab.collectionSearch.trim()) return tab.collections
+  const q = tab.collectionSearch.trim().toLowerCase()
+  return tab.collections.filter(c => c.toLowerCase().includes(q))
+}
+
 async function refreshCollections(tab) {
   tab.loadingCollections = true
   tab.collections = []
@@ -2168,25 +2674,7 @@ async function refreshCollections(tab) {
 }
 
 function selectCollection(tab, colName) {
-  tab.activeCollection = colName
-  tab.firestoreView = 'explorer'
-  tab.selectedDocNames = []
-  
-  // Reset simple query filters
-  tab.queryMode = 'simple'
-  tab.queryDocId = ''
-  tab.queryFilterField = ''
-  tab.queryFilterOp = '=='
-  tab.queryFilterVal = ''
-  tab.querySortField = ''
-  tab.querySortDir = 'asc'
-  tab.queryLimit = 50
-  
-  // Set default JS script
-  tab.queryPreset = 'Basic Fetch'
-  tab.queryScript = `// Query with JavaScript using the Firebase Admin SDK\n// See examples at https://firefoo.app/go/firestore-js-query\nasync function run() {\n  const query = await db.collection("${colName}")\n    .limit(50)\n    .get();\n  return query;\n}`
-
-  fetchDocuments(tab)
+  openCollectionInNewTab(tab, colName)
 }
 
 function setQueryMode(tab, mode) {
@@ -2263,12 +2751,11 @@ async function runSimpleQueryAction(tab) {
       const docs = []
       if (res && Array.isArray(res)) {
         res.forEach(r => {
-          if (r.document) {
-            docs.push(r.document)
-          }
+          if (r.document) docs.push(r.document)
         })
       }
       tab.documents = docs
+      showToast(`Loaded ${docs.length} document(s)`)
     }
   } catch (err) {
     alert('Failed to run query: ' + err)
@@ -2310,7 +2797,8 @@ function openDocInNewTab(parentTab, doc) {
       loading: false,
       users: [],
       nextPageToken: '',
-      collections: [],
+      collections: parentTab.collections || [],
+      collectionsCollapsed: false,
       activeCollection: parentTab.activeCollection,
       activeDocPath: docPath,
       documents: [doc],
@@ -2320,8 +2808,9 @@ function openDocInNewTab(parentTab, doc) {
       firestoreView: 'explorer',
       resultsView: 'tree',
       selectedDocNames: [],
+      queryExpanded: false,
       queryMode: 'js',
-      queryScript: `// Query with JavaScript using the Firebase Admin SDK\n// See examples at https://firefoo.app/go/firestore-js-query\nasync function run() {\n  const doc = await db.doc("${docPath}").get();\n  return doc;\n}`,
+      queryScript: `// Document query\nasync function run() {\n  const doc = await db.doc("${docPath}").get();\n  return doc;\n}`,
       queryOutput: '',
       runningQuery: false
     }
@@ -2362,6 +2851,7 @@ async function deleteSelectedDocuments(tab) {
         const relativePath = docIdx !== -1 ? docName.substring(docIdx + prefix.length) : docName
         await DeleteDocument(tab.email, tab.projectId, '', relativePath, false)
       }
+      showToast(`Deleted ${count} documents!`)
       tab.selectedDocNames = []
       fetchDocuments(tab)
     } catch (err) {
@@ -2483,7 +2973,7 @@ async function copyExportToClipboard() {
   const text = generateExportString()
   try {
     await navigator.clipboard.writeText(text)
-    alert('Copied to clipboard!')
+    showToast('Copied export data to clipboard!')
   } catch (err) {
     alert('Failed to copy to clipboard: ' + err)
   }
@@ -2506,6 +2996,7 @@ function downloadExportFile() {
   URL.revokeObjectURL(url)
   
   showExportModal.value = false
+  showToast('Download started!')
 }
 
 // Convert typed Firestore fields to clean JS Object recursively
@@ -2583,7 +3074,6 @@ function formatAllDocsJson(docs) {
   return JSON.stringify(list, null, 2)
 }
 
-// Convert clean JS Object back to typed Firestore fields recursively
 function convertJsonToFirestoreFields(obj) {
   const fields = {}
   for (const key in obj) {
@@ -2628,9 +3118,7 @@ async function saveDocFieldChange(tab, doc, fieldPath, newVal) {
   let cur = cleanFields
   for (let i = 0; i < pathParts.length - 1; i++) {
     const part = pathParts[i]
-    if (cur[part] === undefined) {
-      cur[part] = {}
-    }
+    if (cur[part] === undefined) cur[part] = {}
     cur = cur[part]
   }
   const lastPart = pathParts[pathParts.length - 1]
@@ -2645,6 +3133,7 @@ async function saveDocFieldChange(tab, doc, fieldPath, newVal) {
 
     await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
     doc.fields = updatedTypedFields
+    showToast('Field saved!')
   } catch (err) {
     alert('Failed to save field change: ' + err)
   }
@@ -2657,9 +3146,7 @@ async function addDocField(tab, doc, parentPath, fieldName, fieldType, initialVa
   let cur = cleanFields
   for (let i = 0; i < pathParts.length - 1; i++) {
     const part = pathParts[i]
-    if (cur[part] === undefined) {
-      cur[part] = {}
-    }
+    if (cur[part] === undefined) cur[part] = {}
     cur = cur[part]
   }
   const lastPart = pathParts[pathParts.length - 1]
@@ -2674,6 +3161,7 @@ async function addDocField(tab, doc, parentPath, fieldName, fieldType, initialVa
 
     await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
     doc.fields = updatedTypedFields
+    showToast(`Added field "${fieldName}"!`)
   } catch (err) {
     alert('Failed to add field: ' + err)
   }
@@ -2706,6 +3194,7 @@ async function deleteDocField(tab, doc, fieldPath) {
 
     await SaveDocument(tab.email, tab.projectId, '', relativePath, updatedTypedFields, false)
     doc.fields = updatedTypedFields
+    showToast(`Deleted field "${fieldPath}"!`)
   } catch (err) {
     alert('Failed to delete field: ' + err)
   }
@@ -2787,6 +3276,7 @@ async function saveNewDoc() {
   try {
     await SaveDocument(tab.email, tab.projectId, '', path, fields, true)
     showAddDocModal.value = false
+    showToast('Document created successfully!')
     fetchDocuments(tab)
   } catch (err) {
     alert('Failed to save document: ' + err)
@@ -2799,6 +3289,16 @@ function editDocumentJSON(tab, doc) {
   activeDocPath.value = tab.activeCollection + '/' + docId
   activeDocJson.value = JSON.stringify(cleanDocFields(doc.fields), null, 2)
   showDocModal.value = true
+}
+
+function formatActiveDocJson() {
+  try {
+    const parsed = JSON.parse(activeDocJson.value)
+    activeDocJson.value = JSON.stringify(parsed, null, 2)
+    showToast('Formatted JSON!')
+  } catch (e) {
+    alert('Invalid JSON: ' + e)
+  }
 }
 
 async function saveDocFromJSON() {
@@ -2817,6 +3317,7 @@ async function saveDocFromJSON() {
   try {
     await SaveDocument(tab.email, tab.projectId, '', activeDocPath.value, fields, false)
     showDocModal.value = false
+    showToast('Document saved!')
     const targetDoc = tab.documents ? tab.documents.find(d => getDocId(d.name) === getDocId(activeDocPath.value)) : null
     if (targetDoc) {
       targetDoc.fields = fields
@@ -2833,16 +3334,12 @@ async function deleteDocumentConfirm(tab, doc) {
   if (recursive) {
     try {
       await DeleteDocument(tab.email, tab.projectId, '', path, true)
+      showToast(`Document ${docId} deleted!`)
       fetchDocuments(tab)
     } catch (err) {
       alert('Failed to delete document: ' + err)
     }
   }
-}
-
-
-function loadQueryExample(tab) {
-  tab.queryScript = `// Example script to batch update docs\nconst snapshot = await db.collection("${tab.activeCollection || 'users'}").limit(10).get();\nconsole.log(\`Fetched \${snapshot.size} documents\`);\n\nsnapshot.forEach(doc => {\n  console.log(\`Doc ID: \${doc.id}\`);\n});`
 }
 
 async function runQueryScript(tab) {
@@ -2856,6 +3353,7 @@ async function runQueryScript(tab) {
     } else {
       tab.queryOutput = JSON.stringify(res, null, 2)
     }
+    showToast('Script executed successfully!')
   } catch (err) {
     tab.queryOutput = 'Error running script:\n' + err
   } finally {
@@ -2897,7 +3395,6 @@ async function runCopyConflictCheck() {
   
   copyingNode.value = true
   try {
-    // 1. Conflict Check
     const check = await CheckConflict(copyWizard.destEmail, copyWizard.destProjectId, '', copyWizard.path, copyWizard.type)
     if (check.conflict && !copyWizard.overwrite) {
       const proceed = confirm(`${check.message} Do you want to proceed and overwrite?`)
@@ -2908,7 +3405,6 @@ async function runCopyConflictCheck() {
       copyWizard.overwrite = true
     }
 
-    // 2. Execute Copy
     const copyRes = await CopyNode(
       tab.email, tab.projectId, '',
       copyWizard.destEmail, copyWizard.destProjectId, '',
@@ -2930,20 +3426,6 @@ function getDocId(fullName) {
   if (!fullName) return ''
   const parts = fullName.split('/')
   return parts[parts.length - 1]
-}
-
-function getFieldsPreview(fields) {
-  if (!fields) return '{}'
-  const keys = Object.keys(fields)
-  if (keys.length === 0) return '{}'
-  const summary = keys.map(k => {
-    let val = fields[k]
-    if (typeof val === 'object' && val !== null) {
-      val = JSON.stringify(val)
-    }
-    return `${k}: ${val}`
-  }).join(', ')
-  return `{ ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''} }`
 }
 
 function formatDate(timestamp) {
@@ -3056,21 +3538,3 @@ function getCollectionBreadcrumbs(collPath) {
   return breadcrumbs
 }
 </script>
-
-<style>
-/* Custom styled scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #0c0d0e;
-}
-::-webkit-scrollbar-thumb {
-  background: #2a2d31;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3a3f45;
-}
-</style>
