@@ -79,6 +79,10 @@ export function LoginGoogleAccount() {
   return callBridge('LoginGoogleAccount');
 }
 
+export function RemoveAccount(arg1) {
+  return callBridge('RemoveAccount', arg1);
+}
+
 export function RunJSScript(arg1, arg2, arg3, arg4) {
   return callBridge('RunJSScript', arg1, arg2, arg3, arg4);
 }

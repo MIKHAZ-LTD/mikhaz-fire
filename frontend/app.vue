@@ -9,13 +9,11 @@
         <!-- Row 1: Brand & Status -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl flame-gradient flex items-center justify-center shadow-lg shadow-amber-500/20 text-white font-bold text-base shrink-0">
-              🔥
-            </div>
+            <img src="/logo.svg" alt="Mikhaz Fire" class="w-8 h-8 rounded-xl shadow-lg shadow-amber-500/20 object-contain shrink-0" />
             <div>
               <div class="flex items-center gap-1.5">
                 <h1 class="text-sm font-bold text-white tracking-wide">Mikhaz Fire</h1>
-                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono border border-amber-500/30 font-semibold">v1.1</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono border border-amber-500/30 font-semibold">v1.2</span>
               </div>
               <p class="text-[10px] text-zinc-400 font-medium">Auth &amp; Firestore Controller</p>
             </div>
@@ -105,13 +103,13 @@
       <!-- Accounts / Projects List -->
       <div class="flex-1 overflow-y-auto p-2 space-y-2">
         <!-- Pinned / Favorite Projects Section -->
-        <div v-if="pinnedProjects.length > 0 && !sidebarProjectFilter" class="space-y-1 mb-3">
+        <div v-if="filteredPinnedProjects.length > 0" class="space-y-1 mb-3">
           <div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80 flex items-center justify-between">
             <span class="flex items-center gap-1">⭐ Pinned Projects</span>
-            <span class="text-[9px] text-zinc-500 font-mono">{{ pinnedProjects.length }}</span>
+            <span class="text-[9px] text-zinc-500 font-mono">{{ filteredPinnedProjects.length }}</span>
           </div>
           <div 
-            v-for="pin in pinnedProjects" 
+            v-for="pin in filteredPinnedProjects" 
             :key="pin.projectId"
             class="group/pin p-2 rounded-lg bg-[#141721] border border-amber-500/20 hover:border-amber-500/40 text-xs transition-all shadow-sm"
           >
@@ -168,21 +166,31 @@
         <div v-for="acc in filteredAccounts" :key="acc.email" class="space-y-1">
           <!-- Account Item Header -->
           <div 
-            class="flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-all border"
+            class="group/acc flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-all border gap-1.5"
             :class="expandedAccount === acc.email 
               ? 'bg-[#181b26] border-amber-500/30 text-white shadow-sm' 
               : 'hover:bg-[#141721] border-transparent text-zinc-300 hover:text-white'"
             @click="toggleAccount(acc.email)"
           >
-            <div class="flex items-center gap-2 truncate">
+            <div class="flex items-center gap-2 truncate min-w-0">
               <span class="text-xs transform transition-transform duration-150 text-zinc-400" :class="expandedAccount === acc.email ? 'rotate-90 text-amber-400' : ''">
                 ▸
               </span>
               <span class="truncate font-semibold tracking-tight" :title="acc.email">{{ acc.email }}</span>
             </div>
-            <UBadge size="xs" color="warning" variant="subtle" class="text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-wider shrink-0">
-              {{ acc.is_service_account ? 'SA' : acc.source }}
-            </UBadge>
+            <div class="flex items-center gap-1 shrink-0">
+              <UBadge size="xs" color="warning" variant="subtle" class="text-[9px] font-mono px-1.5 py-0.5 uppercase tracking-wider shrink-0">
+                {{ acc.is_service_account ? 'SA' : acc.source }}
+              </UBadge>
+              <button
+                type="button"
+                @click.stop="removeAccountAction(acc.email)"
+                class="opacity-0 group-hover/acc:opacity-100 text-zinc-500 hover:text-rose-400 text-[11px] px-1 rounded transition-opacity"
+                title="Remove account from session"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <!-- Projects List for Expanded Account -->
@@ -190,6 +198,18 @@
             <div v-if="loadingProjects" class="text-xs text-zinc-400 py-3 pl-2 flex items-center gap-2">
               <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin text-amber-400" />
               <span>Loading projects...</span>
+            </div>
+            <div v-else-if="accountErrors[acc.email]" class="p-2.5 rounded-lg bg-rose-950/30 border border-rose-500/30 text-[11px] space-y-2">
+              <div class="font-semibold text-rose-300">Failed to load projects</div>
+              <div class="text-rose-200/80 break-words font-mono text-[10px] max-h-20 overflow-auto">{{ accountErrors[acc.email] }}</div>
+              <div class="flex items-center gap-1.5 pt-1">
+                <UButton size="2xs" color="warning" variant="subtle" @click.stop="triggerGoogleLogin">
+                  Re-Auth
+                </UButton>
+                <UButton size="2xs" color="danger" variant="subtle" @click.stop="removeAccountAction(acc.email)">
+                  Remove
+                </UButton>
+              </div>
             </div>
             <div v-else-if="filteredProjects.length === 0" class="text-xs text-zinc-400 py-3 pl-2 italic">
               {{ sidebarProjectFilter ? 'No matching projects.' : 'No projects found.' }}
@@ -395,6 +415,18 @@
 
               <div class="flex items-center gap-2">
                 <UButton
+                  color="neutral"
+                  variant="subtle"
+                  size="xs"
+                  icon="i-heroicons-arrow-path"
+                  :loading="tab.loading"
+                  class="font-medium"
+                  @click="refreshAuthUsers(tab)"
+                  title="Reload Auth Users"
+                >
+                  Refresh
+                </UButton>
+                <UButton
                   color="info"
                   variant="subtle"
                   size="xs"
@@ -468,25 +500,36 @@
             </div>
 
             <!-- Unified Search and Filter Bar -->
-            <div class="flex items-center gap-3 bg-[#141721] p-2.5 rounded-xl border border-white/8">
-              <div class="flex-1 relative">
+            <div class="flex flex-wrap items-center gap-3 bg-[#141721] p-2.5 rounded-xl border border-white/8">
+              <div class="flex-1 min-w-56 relative">
                 <UInput
                   v-model="tab.searchQuery"
-                  placeholder="Instant filter by UID, email, display name..."
+                  placeholder="Instant filter by UID, email, name, provider, claims..."
                   size="sm"
                   class="w-full bg-[#090a0f] border-white/10"
                   icon="i-heroicons-magnifying-glass"
                   @keydown.enter="fetchAuthUsers(tab)"
-                />
+                >
+                  <template #trailing v-if="tab.searchQuery">
+                    <UButton
+                      color="neutral"
+                      variant="link"
+                      size="2xs"
+                      icon="i-heroicons-x-mark"
+                      class="text-zinc-400 hover:text-white"
+                      @click="clearAuthSearch(tab)"
+                    />
+                  </template>
+                </UInput>
               </div>
               <UButton color="neutral" variant="subtle" size="sm" @click="fetchAuthUsers(tab)" :loading="tab.loading">
                 Search API
               </UButton>
 
               <!-- Quick Status Filter Pills -->
-              <div class="flex items-center gap-1 bg-[#090a0f] p-1 rounded-lg border border-white/10">
+              <div class="flex items-center gap-1 bg-[#090a0f] p-1 rounded-lg border border-white/10 flex-wrap">
                 <button
-                  v-for="filterOpt in ['all', 'active', 'disabled', 'claims']"
+                  v-for="filterOpt in ['all', 'active', 'disabled', 'verified', 'unverified', 'claims']"
                   :key="filterOpt"
                   type="button"
                   class="px-2.5 py-1 text-[10px] font-semibold uppercase rounded-md transition-all"
@@ -500,13 +543,48 @@
               </div>
             </div>
 
+            <!-- Bulk Actions Bar for Selected Auth Users -->
+            <div
+              v-if="tab.selectedUserUids && tab.selectedUserUids.length > 0"
+              class="flex items-center justify-between bg-[#181b26] border border-amber-500/30 px-3 py-2 rounded-xl text-xs"
+            >
+              <span class="font-semibold text-amber-300">
+                {{ tab.selectedUserUids.length }} user(s) selected
+              </span>
+              <div class="flex items-center gap-2">
+                <UButton size="xs" color="success" variant="subtle" @click="bulkSetUsersDisabled(tab, false)">
+                  Enable
+                </UButton>
+                <UButton size="xs" color="warning" variant="subtle" @click="bulkSetUsersDisabled(tab, true)">
+                  Disable
+                </UButton>
+                <UButton size="xs" color="neutral" variant="subtle" @click="exportSelectedAuthUsers(tab)">
+                  Export Selected
+                </UButton>
+                <UButton size="xs" color="danger" variant="subtle" @click="bulkDeleteUsers(tab)">
+                  Delete Selected
+                </UButton>
+                <UButton size="xs" color="neutral" variant="ghost" @click="tab.selectedUserUids = []">
+                  Clear
+                </UButton>
+              </div>
+            </div>
+
             <!-- Users Table -->
             <div class="flex-1 border border-white/8 bg-[#0f1118] rounded-xl overflow-hidden flex flex-col shadow-md min-h-0">
               <div class="flex-1 overflow-auto">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr class="bg-[#141721] text-zinc-300 border-b border-white/8 font-semibold select-none sticky top-0 z-10 backdrop-blur">
-                      <th class="p-3 w-12 text-center">#</th>
+                      <th class="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          :checked="areAllFilteredUsersSelected(tab)"
+                          @change="toggleSelectAllUsers(tab)"
+                          class="accent-amber-500 rounded"
+                        />
+                      </th>
+                      <th class="p-3 w-10 text-center">#</th>
                       <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'uid')">
                         UID
                         <span v-if="tab.authSortField === 'uid'" class="ml-1 text-[10px] text-amber-400">
@@ -525,11 +603,29 @@
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
-                      <th class="p-3">Status</th>
+                      <th class="p-3">Providers</th>
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'emailVerified')">
+                        Verified
+                        <span v-if="tab.authSortField === 'emailVerified'" class="ml-1 text-[10px] text-amber-400">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'disabled')">
+                        Status
+                        <span v-if="tab.authSortField === 'disabled'" class="ml-1 text-[10px] text-amber-400">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
                       <th class="p-3">Claims</th>
                       <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'createdAt')">
                         Created
                         <span v-if="tab.authSortField === 'createdAt'" class="ml-1 text-[10px] text-amber-400">
+                          {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
+                        </span>
+                      </th>
+                      <th class="p-3 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleAuthSort(tab, 'lastLoginAt')">
+                        Last Login
+                        <span v-if="tab.authSortField === 'lastLoginAt'" class="ml-1 text-[10px] text-amber-400">
                           {{ tab.authSortDir === 'asc' ? '▲' : '▼' }}
                         </span>
                       </th>
@@ -538,16 +634,16 @@
                   </thead>
                   <tbody>
                     <tr v-if="tab.loading" class="text-center">
-                      <td colspan="8" class="p-12 text-zinc-400">
+                      <td colspan="12" class="p-12 text-zinc-400">
                         <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
                         <span>Loading users from project...</span>
                       </td>
                     </tr>
                     <tr v-else-if="!tab.users || tab.users.length === 0" class="text-center">
-                      <td colspan="8" class="p-12 text-zinc-500">No users found in this project.</td>
+                      <td colspan="12" class="p-12 text-zinc-500">No users found in this project.</td>
                     </tr>
                     <tr v-else-if="getFilteredSortedUsers(tab).length === 0" class="text-center">
-                      <td colspan="8" class="p-12 text-zinc-500">No users match the search filter.</td>
+                      <td colspan="12" class="p-12 text-zinc-500">No users match the search filter.</td>
                     </tr>
                     <tr 
                       v-else 
@@ -555,7 +651,17 @@
                       :key="user.uid" 
                       class="border-b border-white/4 hover:bg-white/3 transition-colors group/row"
                     >
-                      <!-- Index & Avatar -->
+                      <!-- Checkbox -->
+                      <td class="p-3 text-center">
+                        <input
+                          type="checkbox"
+                          :checked="tab.selectedUserUids && tab.selectedUserUids.includes(user.uid)"
+                          @change="toggleSelectUser(tab, user.uid)"
+                          class="accent-amber-500 rounded"
+                        />
+                      </td>
+
+                      <!-- Index -->
                       <td class="p-3 text-center text-zinc-500 text-[11px] font-mono">
                         {{ idx + 1 }}
                       </td>
@@ -601,6 +707,32 @@
                         {{ user.displayName || '-' }}
                       </td>
 
+                      <!-- Providers -->
+                      <td class="p-3">
+                        <div v-if="user.providers && user.providers.length > 0" class="flex flex-wrap gap-1">
+                          <span
+                            v-for="prov in user.providers"
+                            :key="prov"
+                            class="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-300 border border-white/10 font-mono"
+                          >
+                            {{ prov }}
+                          </span>
+                        </div>
+                        <span v-else class="text-zinc-600 text-[10px]">anonymous</span>
+                      </td>
+
+                      <!-- Email Verified -->
+                      <td class="p-3">
+                        <UBadge
+                          :color="user.emailVerified ? 'info' : 'neutral'"
+                          variant="subtle"
+                          size="xs"
+                          class="font-medium"
+                        >
+                          {{ user.emailVerified ? 'Verified' : 'Unverified' }}
+                        </UBadge>
+                      </td>
+
                       <!-- Status Badge -->
                       <td class="p-3">
                         <UBadge 
@@ -628,6 +760,9 @@
 
                       <!-- Created Date -->
                       <td class="p-3 text-zinc-400 text-[11px] font-mono">{{ formatDate(user.createdAt) }}</td>
+
+                      <!-- Last Login Date -->
+                      <td class="p-3 text-zinc-400 text-[11px] font-mono">{{ formatDate(user.lastLoginAt) }}</td>
 
                       <!-- Actions -->
                       <td class="p-3 text-right space-x-1 whitespace-nowrap">
@@ -714,7 +849,18 @@
                     icon="i-heroicons-magnifying-glass"
                     size="xs"
                     class="w-full bg-[#141721] border-white/10 text-xs"
-                  />
+                  >
+                    <template #trailing v-if="tab.collectionSearch">
+                      <UButton
+                        color="neutral"
+                        variant="link"
+                        size="2xs"
+                        icon="i-heroicons-x-mark"
+                        class="text-zinc-400 hover:text-white"
+                        @click="tab.collectionSearch = ''"
+                      />
+                    </template>
+                  </UInput>
                 </div>
 
                 <!-- Collections List -->
@@ -784,6 +930,9 @@
                   <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-arrow-path-rounded-square" @click="openCopyWizard(tab)">
                     Copy Wizard
                   </UButton>
+                  <UButton v-if="tab.activeCollection" size="xs" color="neutral" variant="subtle" icon="i-heroicons-arrow-up-tray" @click="openImportDocsModal(tab)">
+                    Import JSON
+                  </UButton>
                   <UButton v-if="tab.activeCollection" size="xs" color="warning" icon="i-heroicons-plus" @click="openAddDocModal(tab)">
                     Add Document
                   </UButton>
@@ -840,53 +989,114 @@
                       <!-- Collapsible Body -->
                       <div v-show="tab.queryExpanded !== false">
                         <!-- Simple Query Form -->
-                        <div v-if="tab.queryMode === 'simple'" class="grid grid-cols-4 gap-3 text-xs pt-1">
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Document ID</label>
-                            <UInput v-model="tab.queryDocId" placeholder="Optional ID" size="xs" class="w-full bg-[#090a0f]" />
+                        <div v-if="tab.queryMode === 'simple'" class="space-y-3 text-xs pt-1">
+                          <!-- Row 1: Doc ID, Collection Group, Sort, Limit -->
+                          <div class="grid grid-cols-5 gap-3">
+                            <div class="flex flex-col gap-1">
+                              <label class="font-semibold text-zinc-400 text-[11px]">Document ID</label>
+                              <UInput v-model="tab.queryDocId" placeholder="Optional exact ID" size="xs" class="w-full bg-[#090a0f]" @keydown.enter="runSimpleQueryAction(tab)" />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                              <label class="font-semibold text-zinc-400 text-[11px]">Sort Field</label>
+                              <UInput v-model="tab.querySortField" placeholder="e.g. createdAt" size="xs" class="w-full bg-[#090a0f]" :list="'sort-fields-list-' + tab.id" @keydown.enter="runSimpleQueryAction(tab)" />
+                              <datalist :id="'sort-fields-list-' + tab.id">
+                                <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
+                              </datalist>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                              <label class="font-semibold text-zinc-400 text-[11px]">Direction</label>
+                              <USelect 
+                                v-model="tab.querySortDir" 
+                                :items="[{label:'Ascending',value:'asc'}, {label:'Descending',value:'desc'}]" 
+                                size="xs"
+                                class="w-full bg-[#090a0f]" 
+                              />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                              <label class="font-semibold text-zinc-400 text-[11px]">Limit</label>
+                              <UInput v-model.number="tab.queryLimit" type="number" placeholder="50" size="xs" class="w-full bg-[#090a0f]" @keydown.enter="runSimpleQueryAction(tab)" />
+                            </div>
+                            <div class="flex items-end pb-1">
+                              <UCheckbox v-model="tab.queryAllDescendants" label="Collection Group" />
+                            </div>
                           </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Filter Field</label>
-                            <UInput v-model="tab.queryFilterField" placeholder="e.g. role" size="xs" class="w-full bg-[#090a0f]" :list="'filter-fields-list-' + tab.id" />
+
+                          <!-- Filter Conditions List -->
+                          <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                              <label class="font-semibold text-zinc-400 text-[11px]">Where Conditions (AND)</label>
+                              <span class="text-[10px] text-zinc-500 font-mono">Supports typed values, lists (a, b), prefix &amp; client fallback</span>
+                            </div>
+                            <div
+                              v-for="(cond, idx) in (tab.queryFilters || [])"
+                              :key="idx"
+                              class="grid grid-cols-12 gap-2 items-center"
+                            >
+                              <div class="col-span-4">
+                                <UInput
+                                  v-model="cond.field"
+                                  placeholder="Field path (e.g. role or profile.tier)"
+                                  size="xs"
+                                  class="w-full bg-[#090a0f]"
+                                  :list="'filter-fields-list-' + tab.id"
+                                  @keydown.enter="runSimpleQueryAction(tab)"
+                                />
+                              </div>
+                              <div class="col-span-3">
+                                <USelect
+                                  v-model="cond.op"
+                                  :items="['==', '!=', '>', '>=', '<', '<=', 'array-contains', 'in', 'not-in', 'array-contains-any', 'starts-with', 'contains', 'is-null', 'is-not-null']"
+                                  size="xs"
+                                  class="w-full bg-[#090a0f]"
+                                />
+                              </div>
+                              <div class="col-span-2">
+                                <USelect
+                                  v-model="cond.valType"
+                                  :items="['auto', 'string', 'number', 'boolean', 'timestamp', 'array', 'null']"
+                                  size="xs"
+                                  class="w-full bg-[#090a0f]"
+                                  :disabled="cond.op === 'is-null' || cond.op === 'is-not-null'"
+                                />
+                              </div>
+                              <div class="col-span-2">
+                                <UInput
+                                  v-model="cond.val"
+                                  :placeholder="cond.op === 'is-null' || cond.op === 'is-not-null' ? '(no value)' : (['in', 'not-in', 'array-contains-any'].includes(cond.op) ? 'a, b, c' : 'Value')"
+                                  size="xs"
+                                  class="w-full bg-[#090a0f]"
+                                  :disabled="cond.op === 'is-null' || cond.op === 'is-not-null'"
+                                  @keydown.enter="runSimpleQueryAction(tab)"
+                                />
+                              </div>
+                              <div class="col-span-1 flex justify-end">
+                                <UButton
+                                  v-if="(tab.queryFilters || []).length > 1"
+                                  size="xs"
+                                  color="neutral"
+                                  variant="ghost"
+                                  icon="i-heroicons-x-mark"
+                                  @click="removeQueryFilterRow(tab, idx)"
+                                  title="Remove filter"
+                                />
+                              </div>
+                            </div>
                             <datalist :id="'filter-fields-list-' + tab.id">
                               <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
                             </datalist>
                           </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Operator</label>
-                            <USelect 
-                              v-model="tab.queryFilterOp" 
-                              :items="['==', '>', '>=', '<', '<=', '!=', 'array-contains']" 
-                              size="xs"
-                              class="w-full bg-[#090a0f]" 
-                            />
-                          </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Value</label>
-                            <UInput v-model="tab.queryFilterVal" placeholder="Filter value" size="xs" class="w-full bg-[#090a0f]" />
-                          </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Sort Field</label>
-                            <UInput v-model="tab.querySortField" placeholder="e.g. createdAt" size="xs" class="w-full bg-[#090a0f]" :list="'sort-fields-list-' + tab.id" />
-                            <datalist :id="'sort-fields-list-' + tab.id">
-                              <option v-for="field in getAvailableFields(tab)" :key="field" :value="field">{{ field }}</option>
-                            </datalist>
-                          </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Direction</label>
-                            <USelect 
-                              v-model="tab.querySortDir" 
-                              :items="[{label:'Ascending',value:'asc'}, {label:'Descending',value:'desc'}]" 
-                              size="xs"
-                              class="w-full bg-[#090a0f]" 
-                            />
-                          </div>
-                          <div class="flex flex-col gap-1">
-                            <label class="font-semibold text-zinc-400 text-[11px]">Limit</label>
-                            <UInput v-model.number="tab.queryLimit" type="number" placeholder="50" size="xs" class="w-full bg-[#090a0f]" />
-                          </div>
-                          <div class="flex items-end justify-end">
-                            <UButton color="warning" size="xs" @click="runSimpleQueryAction(tab)" :loading="tab.loadingDocuments" class="w-full justify-center font-semibold">
+
+                          <!-- Action Buttons -->
+                          <div class="flex items-center justify-between pt-1">
+                            <div class="flex items-center gap-2">
+                              <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-plus" @click="addQueryFilterRow(tab)">
+                                Add Filter
+                              </UButton>
+                              <UButton size="xs" color="neutral" variant="ghost" icon="i-heroicons-arrow-uturn-left" @click="resetSimpleQuery(tab)">
+                                Reset
+                              </UButton>
+                            </div>
+                            <UButton color="warning" size="xs" icon="i-heroicons-play" @click="runSimpleQueryAction(tab)" :loading="tab.loadingDocuments" class="px-4 font-semibold">
                               Run Query
                             </UButton>
                           </div>
@@ -935,38 +1145,66 @@
                     <!-- Results Section (Table / Tree / JSON) -->
                     <div class="flex-1 flex flex-col space-y-2 min-h-0">
                       <!-- Results Navigation Tabs and Selection Toolbar -->
-                      <div class="flex items-center justify-between border-b border-white/8 pb-2">
-                        <div class="flex items-center gap-1 bg-[#141721] p-1 rounded-lg border border-white/8">
-                          <button 
-                            type="button"
-                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
-                            :class="tab.resultsView === 'tree' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
-                            @click="tab.resultsView = 'tree'"
-                          >
-                            <span>🌲</span> Tree
-                          </button>
-                          <button 
-                            type="button"
-                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
-                            :class="tab.resultsView === 'table' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
-                            @click="tab.resultsView = 'table'"
-                          >
-                            <span>📊</span> Table
-                          </button>
-                          <button 
-                            type="button"
-                            class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
-                            :class="tab.resultsView === 'json' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
-                            @click="tab.resultsView = 'json'"
-                          >
-                            <span>{ }</span> JSON
-                          </button>
+                      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 pb-2">
+                        <div class="flex items-center gap-2">
+                          <div class="flex items-center gap-1 bg-[#141721] p-1 rounded-lg border border-white/8">
+                            <button 
+                              type="button"
+                              class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                              :class="tab.resultsView === 'tree' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
+                              @click="tab.resultsView = 'tree'"
+                            >
+                              <span>🌲</span> Tree
+                            </button>
+                            <button 
+                              type="button"
+                              class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                              :class="tab.resultsView === 'table' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
+                              @click="tab.resultsView = 'table'"
+                            >
+                              <span>📊</span> Table
+                            </button>
+                            <button 
+                              type="button"
+                              class="px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1"
+                              :class="tab.resultsView === 'json' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'"
+                              @click="tab.resultsView = 'json'"
+                            >
+                              <span>{ }</span> JSON
+                            </button>
+                          </div>
+
+                          <div class="w-60">
+                            <UInput
+                              v-model="tab.docInstantFilter"
+                              placeholder="Instant filter loaded docs..."
+                              icon="i-heroicons-funnel"
+                              size="xs"
+                              class="w-full bg-[#141721] border-white/10"
+                            >
+                              <template #trailing v-if="tab.docInstantFilter">
+                                <UButton
+                                  color="neutral"
+                                  variant="link"
+                                  size="2xs"
+                                  icon="i-heroicons-x-mark"
+                                  class="text-zinc-400 hover:text-white"
+                                  @click="tab.docInstantFilter = ''"
+                                />
+                              </template>
+                            </UInput>
+                          </div>
                         </div>
 
                         <!-- Document Count & Selection Action Toolbar -->
                         <div class="flex items-center gap-3">
                           <span class="text-xs text-zinc-400 font-mono">
-                            {{ tab.documents ? tab.documents.length : 0 }} document(s)
+                            <template v-if="tab.docInstantFilter && tab.docInstantFilter.trim()">
+                              {{ getDisplayedDocuments(tab).length }} of {{ tab.documents ? tab.documents.length : 0 }} document(s)
+                            </template>
+                            <template v-else>
+                              {{ tab.documents ? tab.documents.length : 0 }} document(s)
+                            </template>
                           </span>
 
                           <span class="text-xs text-amber-400 font-semibold" v-if="tab.selectedDocNames && tab.selectedDocNames.length > 0">
@@ -1006,7 +1244,7 @@
                         <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/8">
                           <input 
                             type="checkbox" 
-                            :checked="tab.selectedDocNames && tab.selectedDocNames.length === tab.documents.length && tab.documents.length > 0"
+                            :checked="areAllDisplayedDocsSelected(tab)"
                             @change="toggleSelectAllDocs(tab)"
                             class="accent-amber-500 rounded"
                           />
@@ -1020,8 +1258,11 @@
                         <div v-else-if="!tab.documents || tab.documents.length === 0" class="text-xs text-zinc-500 text-center p-8">
                           No documents found in this collection.
                         </div>
+                        <div v-else-if="getDisplayedDocuments(tab).length === 0" class="text-xs text-zinc-500 text-center p-8">
+                          No loaded documents match the instant filter.
+                        </div>
                         <div v-else class="space-y-2">
-                          <div v-for="doc in tab.documents" :key="doc.name" class="border border-white/6 hover:border-amber-500/30 rounded-xl p-2.5 bg-[#141721]/60 flex items-start gap-3 transition-all">
+                          <div v-for="doc in getDisplayedDocuments(tab)" :key="doc.name" class="border border-white/6 hover:border-amber-500/30 rounded-xl p-2.5 bg-[#141721]/60 flex items-start gap-3 transition-all">
                             <input 
                               type="checkbox" 
                               :checked="tab.selectedDocNames && tab.selectedDocNames.includes(doc.name)"
@@ -1043,6 +1284,7 @@
                                 @add-field="(parentPath, fieldName, fieldType, initialVal) => addDocField(tab, doc, parentPath, fieldName, fieldType, initialVal)"
                                 @delete-field="(fieldPath) => deleteDocField(tab, doc, fieldPath)"
                                 @editJson="editDocumentJSON(tab, doc)"
+                                @duplicateDoc="openDuplicateDocModal(tab, doc)"
                                 @deleteDoc="deleteDocumentConfirm(tab, doc)"
                                 @openTab="openDocInNewTab(tab, doc)"
                               />
@@ -1060,29 +1302,47 @@
                                 <th class="p-3 w-10 text-center">
                                   <input 
                                     type="checkbox" 
-                                    :checked="tab.selectedDocNames && tab.selectedDocNames.length === tab.documents.length && tab.documents.length > 0"
+                                    :checked="areAllDisplayedDocsSelected(tab)"
                                     @change="toggleSelectAllDocs(tab)"
                                     class="accent-amber-500 rounded"
                                   />
                                 </th>
-                                <th class="p-3 w-1/4">Document ID</th>
-                                <th v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-zinc-300">{{ col }}</th>
+                                <th class="p-3 w-1/4 cursor-pointer hover:text-amber-400 transition-colors" @click="toggleTableSort(tab, '__id__')">
+                                  Document ID
+                                  <span v-if="tab.tableSortField === '__id__'" class="ml-1 text-[10px] text-amber-400">
+                                    {{ tab.tableSortDir === 'asc' ? '▲' : '▼' }}
+                                  </span>
+                                </th>
+                                <th
+                                  v-for="col in getTableColumns(getDisplayedDocuments(tab))"
+                                  :key="col"
+                                  class="p-3 font-mono text-zinc-300 cursor-pointer hover:text-amber-400 transition-colors"
+                                  @click="toggleTableSort(tab, col)"
+                                >
+                                  {{ col }}
+                                  <span v-if="tab.tableSortField === col" class="ml-1 text-[10px] text-amber-400">
+                                    {{ tab.tableSortDir === 'asc' ? '▲' : '▼' }}
+                                  </span>
+                                </th>
                                 <th class="p-3 text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               <tr v-if="tab.loadingDocuments" class="text-center">
-                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-12 text-zinc-400">
+                                <td :colspan="getTableColumns(getDisplayedDocuments(tab)).length + 3" class="p-12 text-zinc-400">
                                   <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin mx-auto text-amber-400 mb-2" />
                                   <span>Loading documents...</span>
                                 </td>
                               </tr>
                               <tr v-else-if="!tab.documents || tab.documents.length === 0" class="text-center">
-                                <td :colspan="getTableColumns(tab.documents).length + 3" class="p-12 text-zinc-500">No documents found.</td>
+                                <td :colspan="getTableColumns(getDisplayedDocuments(tab)).length + 3" class="p-12 text-zinc-500">No documents found.</td>
+                              </tr>
+                              <tr v-else-if="getDisplayedDocuments(tab).length === 0" class="text-center">
+                                <td :colspan="getTableColumns(getDisplayedDocuments(tab)).length + 3" class="p-12 text-zinc-500">No loaded documents match the instant filter.</td>
                               </tr>
                               <tr 
                                 v-else 
-                                v-for="doc in tab.documents" 
+                                v-for="doc in getDisplayedDocuments(tab)" 
                                 :key="doc.name" 
                                 class="border-b border-white/4 hover:bg-white/3 transition-colors cursor-pointer group/row"
                                 @click="toggleSelectDoc(tab, doc.name)"
@@ -1110,7 +1370,7 @@
                                     </button>
                                   </div>
                                 </td>
-                                <td v-for="col in getTableColumns(tab.documents)" :key="col" class="p-3 font-mono text-[11px] text-zinc-400 truncate max-w-37.5">
+                                <td v-for="col in getTableColumns(getDisplayedDocuments(tab))" :key="col" class="p-3 font-mono text-[11px] text-zinc-400 truncate max-w-37.5">
                                   {{ getColumnValue(doc, col) }}
                                 </td>
                                 <td class="p-3 text-right space-x-1 whitespace-nowrap" @click.stop>
@@ -1141,6 +1401,7 @@
                                   </UButton>
 
                                   <UButton size="xs" variant="ghost" color="neutral" @click="openDocInNewTab(tab, doc)">Tab</UButton>
+                                  <UButton size="xs" variant="ghost" color="neutral" @click="openDuplicateDocModal(tab, doc)" title="Duplicate Document">Dup</UButton>
                                   <UButton size="xs" variant="ghost" color="neutral" @click="editDocumentJSON(tab, doc)">JSON</UButton>
                                   <UButton size="xs" variant="ghost" color="danger" @click="deleteDocumentConfirm(tab, doc)">Delete</UButton>
                                 </td>
@@ -1155,7 +1416,7 @@
                         <textarea 
                           class="grow flex-1 w-full h-full bg-[#090a0f] text-zinc-300 font-mono text-xs p-3 rounded-lg border border-white/10 resize-none outline-none select-text min-h-0" 
                           readonly
-                        >{{ formatAllDocsJson(tab.documents) }}</textarea>
+                        >{{ formatAllDocsJson(getDisplayedDocuments(tab)) }}</textarea>
                       </div>
 
                       <!-- Load More Button -->
@@ -1691,7 +1952,7 @@
                     v-model="copyWizard.destEmail" 
                     :items="accounts.map(a => a.email)" 
                     class="w-full bg-[#090a0f]"
-                    @change="loadDestProjects"
+                    @update:model-value="loadDestProjects"
                   />
                 </div>
                 <div>
@@ -1743,16 +2004,16 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-zinc-300 mb-1">Export Format</label>
-                <USelect v-model="exportConfig.format" :items="['JSON', 'CSV']" class="w-full bg-[#090a0f]" @change="updateExportPreview" />
+                <USelect v-model="exportConfig.format" :items="['JSON', 'CSV']" class="w-full bg-[#090a0f]" @update:model-value="updateExportPreview" />
               </div>
               <div class="flex flex-col gap-2 justify-end pb-1">
-                <UCheckbox v-model="exportConfig.includeIds" label="Include Document IDs" @change="updateExportPreview" />
-                <UCheckbox v-model="exportConfig.includePaths" label="Include Document Paths" @change="updateExportPreview" />
+                <UCheckbox v-model="exportConfig.includeIds" label="Include Document IDs" @update:model-value="updateExportPreview" />
+                <UCheckbox v-model="exportConfig.includePaths" label="Include Document Paths" @update:model-value="updateExportPreview" />
               </div>
             </div>
 
             <div class="pt-2" v-if="exportConfig.hasSelection">
-              <UCheckbox v-model="exportConfig.onlySelected" :label="`Export only selected documents (${exportConfig.selectedCount} selected)`" @change="updateExportPreview" />
+              <UCheckbox v-model="exportConfig.onlySelected" :label="`Export only selected documents (${exportConfig.selectedCount} selected)`" @update:model-value="updateExportPreview" />
             </div>
 
             <div class="flex flex-col space-y-1 mt-4">
@@ -1771,6 +2032,104 @@
               <UButton color="neutral" variant="ghost" @click="showExportModal = false">Cancel</UButton>
               <UButton color="neutral" variant="subtle" @click="copyExportToClipboard">Copy to Clipboard</UButton>
               <UButton color="warning" @click="downloadExportFile">Download File</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Modal: Duplicate Document -->
+    <UModal v-model:open="showDuplicateDocModal" :dismissible="false">
+      <template #content>
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">📄</span>
+                <h3 class="text-base font-bold text-white">Duplicate Document</h3>
+              </div>
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showDuplicateDocModal = false" />
+            </div>
+          </template>
+
+          <div class="space-y-4 p-2 text-xs">
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Source Document</label>
+              <div class="bg-[#090a0f] p-2 rounded-lg text-amber-400 border border-white/10 font-mono truncate">
+                {{ duplicateDocForm.sourcePath }}
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">Target Collection Path</label>
+              <UInput v-model="duplicateDocForm.targetCollection" placeholder="collection" class="w-full bg-[#090a0f] font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1">New Document ID</label>
+              <UInput v-model="duplicateDocForm.newDocId" placeholder="new-doc-id" class="w-full bg-[#090a0f] font-mono" />
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" @click="showDuplicateDocModal = false">Cancel</UButton>
+              <UButton color="warning" @click="confirmDuplicateDoc" :loading="duplicatingDoc">Duplicate</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Modal: Import Firestore Documents (JSON) -->
+    <UModal v-model:open="showImportDocsModal" :dismissible="false" :ui="{ content: 'sm:max-w-xl' }">
+      <template #content>
+        <UCard :ui="{ background: 'bg-[#141721]', border: 'border-white/10' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">📥</span>
+                <h3 class="text-base font-bold text-white">Import Documents (JSON)</h3>
+              </div>
+              <UButton color="neutral" variant="ghost" icon="i-heroicons-x-mark" class="-my-1" @click="showImportDocsModal = false" />
+            </div>
+          </template>
+
+          <div class="space-y-4 p-2 text-xs">
+            <div class="bg-[#090a0f] p-2.5 rounded-lg border border-white/10 text-zinc-300 flex items-center justify-between">
+              <span>Target Collection: <strong class="text-amber-400 font-mono">{{ activeTabContext?.activeCollection }}</strong></span>
+              <input type="file" id="firestore-import-file-input" accept=".json" class="hidden" @change="onImportDocsFileSelected" />
+              <UButton size="xs" color="neutral" variant="subtle" icon="i-heroicons-folder-open" @click="triggerImportDocsFilePicker">
+                Upload JSON File
+              </UButton>
+            </div>
+
+            <UTextarea
+              v-model="importDocsJsonInput"
+              placeholder='Paste JSON array: [{ "id": "doc1", "fields": { "name": "Alice" } }] or [{ "id": "doc1", "name": "Alice" }] or { "doc1": { "name": "Alice" } }'
+              rows="8"
+              class="w-full font-mono text-[11px] bg-[#090a0f] border-white/10"
+              @input="parseImportDocsInput"
+            />
+
+            <div class="flex items-center justify-between">
+              <UCheckbox v-model="importDocsOverwrite" label="Overwrite existing documents with same ID" />
+              <UBadge v-if="parsedImportDocsList !== null" :color="parsedImportDocsList.length > 0 ? 'success' : 'danger'" variant="subtle" size="sm">
+                {{ parsedImportDocsList.length }} document(s) ready
+              </UBadge>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" @click="showImportDocsModal = false">Cancel</UButton>
+              <UButton
+                color="warning"
+                icon="i-heroicons-arrow-up-tray"
+                :loading="importingDocs"
+                :disabled="importingDocs || !parsedImportDocsList || parsedImportDocsList.length === 0"
+                @click="runImportDocs"
+              >
+                Import {{ parsedImportDocsList ? parsedImportDocsList.length : 0 }} Docs
+              </UButton>
             </div>
           </template>
         </UCard>
@@ -1836,6 +2195,7 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import {
   GetAccounts,
   AddServiceAccount,
+  RemoveAccount,
   LoginGoogleAccount,
   ListProjects,
   ListAuthUsers,
@@ -1860,6 +2220,7 @@ import {
 const accounts = ref([])
 const projects = ref([])
 const expandedAccount = ref(null)
+const accountErrors = reactive({})
 const scanning = ref(false)
 const loadingProjects = ref(false)
 const loggingInGoogle = ref(false)
@@ -1916,6 +2277,15 @@ function isPinned(projectId) {
 
 const filteredAccounts = computed(() => {
   return accounts.value
+})
+
+const filteredPinnedProjects = computed(() => {
+  if (!sidebarProjectFilter.value.trim()) return pinnedProjects.value
+  const q = sidebarProjectFilter.value.trim().toLowerCase()
+  return pinnedProjects.value.filter(p =>
+    p.projectId.toLowerCase().includes(q) ||
+    (p.displayName && p.displayName.toLowerCase().includes(q))
+  )
 })
 
 const filteredProjects = computed(() => {
@@ -2032,6 +2402,24 @@ const activeDocJson = ref('{}')
 const newDocId = ref('')
 const newDocFieldsJson = ref('{}')
 
+// Duplicate Document Modal State
+const showDuplicateDocModal = ref(false)
+const duplicatingDoc = ref(false)
+const duplicateDocForm = reactive({
+  sourcePath: '',
+  targetCollection: '',
+  newDocId: '',
+  fields: {},
+  tab: null
+})
+
+// Import Firestore Documents Modal State
+const showImportDocsModal = ref(false)
+const importingDocs = ref(false)
+const importDocsJsonInput = ref('')
+const importDocsOverwrite = ref(true)
+const parsedImportDocsList = ref(null)
+
 // Copy Modal State
 const showCopyModal = ref(false)
 const activeCopySource = ref('')
@@ -2090,14 +2478,32 @@ async function toggleAccount(email) {
     expandedAccount.value = email
     loadingProjects.value = true
     projects.value = []
+    delete accountErrors[email]
     try {
       const res = await ListProjects(email)
       projects.value = res || []
     } catch (err) {
       console.error('Failed to load projects:', err)
+      accountErrors[email] = String(err)
     } finally {
       loadingProjects.value = false
     }
+  }
+}
+
+async function removeAccountAction(email) {
+  if (!confirm(`Remove account ${email} from this session?`)) return
+  try {
+    await RemoveAccount(email)
+    if (expandedAccount.value === email) {
+      expandedAccount.value = null
+      projects.value = []
+    }
+    delete accountErrors[email]
+    await refreshAccounts()
+    showToast(`Removed ${email}`)
+  } catch (err) {
+    alert('Failed to remove account: ' + err)
   }
 }
 
@@ -2164,6 +2570,9 @@ function openCollectionInNewTab(parentTab, colName) {
       email: parentTab.email,
       projectId: parentTab.projectId,
       searchQuery: '',
+      statusFilter: 'all',
+      selectedUserUids: [],
+      apiSearchActive: false,
       loading: false,
       users: [],
       nextPageToken: '',
@@ -2179,12 +2588,14 @@ function openCollectionInNewTab(parentTab, colName) {
       firestoreView: 'explorer',
       resultsView: parentTab.resultsView || 'table',
       selectedDocNames: [],
+      docInstantFilter: '',
+      tableSortField: '',
+      tableSortDir: 'asc',
       queryExpanded: true,
       queryMode: 'simple',
       queryDocId: '',
-      queryFilterField: '',
-      queryFilterOp: '==',
-      queryFilterVal: '',
+      queryAllDescendants: false,
+      queryFilters: [{ field: '', op: '==', val: '', valType: 'auto' }],
       querySortField: '',
       querySortDir: 'asc',
       queryLimit: 50,
@@ -2219,6 +2630,8 @@ function openTab(type, email, projectId) {
       projectId,
       searchQuery: '',
       statusFilter: 'all',
+      selectedUserUids: [],
+      apiSearchActive: false,
       loading: false,
       users: [],
       nextPageToken: '',
@@ -2234,12 +2647,14 @@ function openTab(type, email, projectId) {
       firestoreView: 'explorer',
       resultsView: 'table',
       selectedDocNames: [],
+      docInstantFilter: '',
+      tableSortField: '',
+      tableSortDir: 'asc',
       queryExpanded: true,
       queryMode: 'simple',
       queryDocId: '',
-      queryFilterField: '',
-      queryFilterOp: '==',
-      queryFilterVal: '',
+      queryAllDescendants: false,
+      queryFilters: [{ field: '', op: '==', val: '', valType: 'auto' }],
       querySortField: '',
       querySortDir: 'asc',
       queryLimit: 50,
@@ -2290,17 +2705,23 @@ function getFilteredSortedUsers(tab) {
     result = result.filter(u => !u.disabled)
   } else if (tab.statusFilter === 'disabled') {
     result = result.filter(u => u.disabled)
+  } else if (tab.statusFilter === 'verified') {
+    result = result.filter(u => !!u.emailVerified)
+  } else if (tab.statusFilter === 'unverified') {
+    result = result.filter(u => !u.emailVerified)
   } else if (tab.statusFilter === 'claims') {
     result = result.filter(u => hasCustomClaims(u))
   }
 
-  // Unified instant search
+  // Unified instant search (UID, email, displayName, providers, customClaims)
   if (tab.searchQuery && tab.searchQuery.trim()) {
     const q = tab.searchQuery.trim().toLowerCase()
     result = result.filter(u => 
       (u.uid && u.uid.toLowerCase().includes(q)) ||
       (u.email && u.email.toLowerCase().includes(q)) ||
-      (u.displayName && u.displayName.toLowerCase().includes(q))
+      (u.displayName && u.displayName.toLowerCase().includes(q)) ||
+      (Array.isArray(u.providers) && u.providers.some(p => p.toLowerCase().includes(q))) ||
+      (u.customClaims && JSON.stringify(u.customClaims).toLowerCase().includes(q))
     )
   }
   
@@ -2318,7 +2739,7 @@ function getFilteredSortedUsers(tab) {
       valA = !isNaN(parsedA) ? parsedA : (valA ? new Date(valA).getTime() : 0)
       const parsedB = parseInt(valB)
       valB = !isNaN(parsedB) ? parsedB : (valB ? new Date(valB).getTime() : 0)
-    } else if (field === 'disabled') {
+    } else if (field === 'disabled' || field === 'emailVerified') {
       valA = valA ? 1 : 0
       valB = valB ? 1 : 0
     } else {
@@ -2348,8 +2769,11 @@ async function fetchAuthUsers(tab) {
   tab.loading = true
   tab.users = []
   tab.nextPageToken = ''
+  tab.selectedUserUids = []
+  const query = (tab.searchQuery || '').trim()
+  tab.apiSearchActive = query.length > 0
   try {
-    const res = await ListAuthUsers(tab.email, tab.projectId, 50, '', tab.searchQuery || '')
+    const res = await ListAuthUsers(tab.email, tab.projectId, 50, '', query)
     if (res) {
       tab.users = res.users || []
       tab.nextPageToken = res.nextPageToken || ''
@@ -2359,6 +2783,102 @@ async function fetchAuthUsers(tab) {
   } finally {
     tab.loading = false
   }
+}
+
+function clearAuthSearch(tab) {
+  tab.searchQuery = ''
+  if (tab.apiSearchActive) {
+    tab.apiSearchActive = false
+    fetchAuthUsers(tab)
+  }
+}
+
+function refreshAuthUsers(tab) {
+  fetchAuthUsers(tab)
+}
+
+function toggleSelectUser(tab, uid) {
+  if (!tab.selectedUserUids) tab.selectedUserUids = []
+  const idx = tab.selectedUserUids.indexOf(uid)
+  if (idx === -1) tab.selectedUserUids.push(uid)
+  else tab.selectedUserUids.splice(idx, 1)
+}
+
+function areAllFilteredUsersSelected(tab) {
+  const visible = getFilteredSortedUsers(tab)
+  if (visible.length === 0 || !tab.selectedUserUids) return false
+  return visible.every(u => tab.selectedUserUids.includes(u.uid))
+}
+
+function toggleSelectAllUsers(tab) {
+  const visible = getFilteredSortedUsers(tab)
+  if (!tab.selectedUserUids) tab.selectedUserUids = []
+  if (areAllFilteredUsersSelected(tab)) {
+    const visibleSet = new Set(visible.map(u => u.uid))
+    tab.selectedUserUids = tab.selectedUserUids.filter(uid => !visibleSet.has(uid))
+  } else {
+    const selectedSet = new Set(tab.selectedUserUids)
+    visible.forEach(u => selectedSet.add(u.uid))
+    tab.selectedUserUids = Array.from(selectedSet)
+  }
+}
+
+async function bulkSetUsersDisabled(tab, disabled) {
+  const uids = [...(tab.selectedUserUids || [])]
+  if (uids.length === 0) return
+  const actionLabel = disabled ? 'disable' : 'enable'
+  if (!confirm(`Are you sure you want to ${actionLabel} ${uids.length} selected user(s)?`)) return
+
+  tab.loading = true
+  let updated = 0
+  try {
+    for (const uid of uids) {
+      await UpdateAuthUser(tab.email, tab.projectId, { localId: uid, disableUser: disabled })
+      updated++
+    }
+    showToast(`${disabled ? 'Disabled' : 'Enabled'} ${updated} user(s)!`)
+    tab.selectedUserUids = []
+    await fetchAuthUsers(tab)
+  } catch (err) {
+    alert(`Updated ${updated} user(s), error on remaining: ` + err)
+  } finally {
+    tab.loading = false
+  }
+}
+
+async function bulkDeleteUsers(tab) {
+  const uids = [...(tab.selectedUserUids || [])]
+  if (uids.length === 0) return
+  if (!confirm(`Permanently delete ${uids.length} selected user(s)? This cannot be undone.`)) return
+
+  tab.loading = true
+  let deleted = 0
+  try {
+    for (const uid of uids) {
+      await DeleteAuthUser(tab.email, tab.projectId, uid)
+      deleted++
+    }
+    showToast(`Deleted ${deleted} user(s)!`)
+    tab.selectedUserUids = []
+    await fetchAuthUsers(tab)
+  } catch (err) {
+    alert(`Deleted ${deleted} user(s), error on remaining: ` + err)
+  } finally {
+    tab.loading = false
+  }
+}
+
+function exportSelectedAuthUsers(tab) {
+  const uidSet = new Set(tab.selectedUserUids || [])
+  const selectedUsers = (tab.users || []).filter(u => uidSet.has(u.uid))
+  if (selectedUsers.length === 0) return
+  activeTabContext.value = tab
+  exportAuthData.value = {
+    users: selectedUsers,
+    count: selectedUsers.length
+  }
+  exportAuthLoading.value = false
+  showExportAuthModal.value = true
 }
 
 async function fetchAuthUsersNext(tab) {
@@ -2674,11 +3194,46 @@ async function refreshCollections(tab) {
 }
 
 function selectCollection(tab, colName) {
-  openCollectionInNewTab(tab, colName)
+  tab.activeCollection = colName
+  tab.activeDocPath = ''
+  tab.selectedDocNames = []
+  tab.docInstantFilter = ''
+  tab.tableSortField = ''
+  tab.tableSortDir = 'asc'
+  tab.queryDocId = ''
+  tab.queryAllDescendants = false
+  tab.queryFilters = [{ field: '', op: '==', val: '', valType: 'auto' }]
+  tab.querySortField = ''
+  tab.querySortDir = 'asc'
+  loadPresetQueryScript(tab)
+  fetchDocuments(tab)
 }
 
 function setQueryMode(tab, mode) {
   tab.queryMode = mode
+}
+
+function addQueryFilterRow(tab) {
+  if (!tab.queryFilters) tab.queryFilters = []
+  tab.queryFilters.push({ field: '', op: '==', val: '', valType: 'auto' })
+}
+
+function removeQueryFilterRow(tab, idx) {
+  if (!tab.queryFilters || tab.queryFilters.length <= 1) return
+  tab.queryFilters.splice(idx, 1)
+}
+
+function resetSimpleQuery(tab) {
+  tab.queryDocId = ''
+  tab.queryAllDescendants = false
+  tab.queryFilters = [{ field: '', op: '==', val: '', valType: 'auto' }]
+  tab.querySortField = ''
+  tab.querySortDir = 'asc'
+  tab.queryLimit = 50
+  tab.docInstantFilter = ''
+  tab.tableSortField = ''
+  tab.tableSortDir = 'asc'
+  fetchDocuments(tab)
 }
 
 function mapSimpleOpToApi(op) {
@@ -2689,9 +3244,227 @@ function mapSimpleOpToApi(op) {
     '<': 'LESS_THAN',
     '<=': 'LESS_THAN_OR_EQUAL',
     '!=': 'NOT_EQUAL',
-    'array-contains': 'ARRAY_CONTAINS'
+    'array-contains': 'ARRAY_CONTAINS',
+    'in': 'IN',
+    'not-in': 'NOT_IN',
+    'array-contains-any': 'ARRAY_CONTAINS_ANY'
   }
   return mapping[op] || 'EQUAL'
+}
+
+function getNestedTypedField(fields, fieldPath) {
+  if (!fields || !fieldPath) return null
+  const parts = fieldPath.split('.')
+  let cur = fields
+  for (let i = 0; i < parts.length; i++) {
+    const key = parts[i]
+    if (!cur || !(key in cur)) return null
+    const valObj = cur[key]
+    if (i === parts.length - 1) return valObj
+    if (valObj && valObj.mapValue && valObj.mapValue.fields) {
+      cur = valObj.mapValue.fields
+    } else {
+      return null
+    }
+  }
+  return null
+}
+
+function inferFieldSampleType(tab, fieldPath) {
+  if (!tab || !tab.documents) return null
+  for (const doc of tab.documents) {
+    const typed = getNestedTypedField(doc.fields, fieldPath)
+    if (!typed) continue
+    if ('stringValue' in typed) return 'string'
+    if ('integerValue' in typed) return 'integer'
+    if ('doubleValue' in typed) return 'double'
+    if ('booleanValue' in typed) return 'boolean'
+    if ('timestampValue' in typed) return 'timestamp'
+  }
+  return null
+}
+
+function parseScalarAuto(rawStr, hintType) {
+  const s = String(rawStr ?? '').trim()
+  if (hintType === 'string') return { stringValue: String(rawStr ?? '') }
+  if (hintType === 'boolean') return { booleanValue: s.toLowerCase() === 'true' || s === '1' }
+  if (hintType === 'null') return { nullValue: null }
+  if (hintType === 'number' || hintType === 'integer' || hintType === 'double') {
+    const num = Number(s)
+    if (!isNaN(num) && s !== '') {
+      if (hintType === 'integer' || (hintType === 'number' && Number.isInteger(num) && !s.includes('.'))) {
+        return { integerValue: String(parseInt(s, 10)) }
+      }
+      return { doubleValue: num }
+    }
+  }
+  if (hintType === 'timestamp') {
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) return { timestampValue: d.toISOString() }
+    return { timestampValue: s }
+  }
+
+  // Automatic inference
+  if (s === 'true' || s === 'false') return { booleanValue: s === 'true' }
+  if (s === 'null') return { nullValue: null }
+  if (s !== '' && !isNaN(Number(s)) && !/^0\d+/.test(s)) {
+    return s.includes('.') ? { doubleValue: parseFloat(s) } : { integerValue: String(parseInt(s, 10)) }
+  }
+  if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(s)) {
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) return { timestampValue: d.toISOString() }
+  }
+  return { stringValue: String(rawStr ?? '') }
+}
+
+function parseListForFilter(rawStr, hintType) {
+  const s = String(rawStr ?? '').trim()
+  if (s.startsWith('[')) {
+    try {
+      const arr = JSON.parse(s)
+      if (Array.isArray(arr)) {
+        return { arrayValue: { values: arr.map(v => convertValueToFirestore(v)) } }
+      }
+    } catch (e) {}
+  }
+  const items = s.split(',').map(part => part.trim()).filter(part => part !== '')
+  return {
+    arrayValue: {
+      values: items.map(item => parseScalarAuto(item, hintType))
+    }
+  }
+}
+
+function buildFilterTypedValue(tab, cond) {
+  const valType = cond.valType || 'auto'
+  const op = cond.op || '=='
+  const effectiveHint = valType === 'auto' ? (inferFieldSampleType(tab, cond.field.trim()) || 'auto') : valType
+
+  if (op === 'in' || op === 'not-in' || op === 'array-contains-any' || valType === 'array') {
+    return parseListForFilter(cond.val, effectiveHint === 'array' ? 'auto' : effectiveHint)
+  }
+  return parseScalarAuto(cond.val, effectiveHint)
+}
+
+function getCleanValueAtPath(doc, fieldPath) {
+  const cleaned = cleanDocFields(doc.fields)
+  const parts = fieldPath.split('.')
+  let cur = cleaned
+  for (const part of parts) {
+    if (cur === null || cur === undefined || typeof cur !== 'object') return undefined
+    cur = cur[part]
+  }
+  return cur
+}
+
+function normalizeComparable(val) {
+  if (val === undefined || val === null) return null
+  if (typeof val === 'object') {
+    if ('__time__' in val) return new Date(val.__time__).getTime()
+    if ('__ref__' in val) return val.__ref__
+    if ('__geopoint__' in val) return `${val.__geopoint__.latitude},${val.__geopoint__.longitude}`
+    if ('__bytes__' in val) return val.__bytes__
+    return JSON.stringify(val)
+  }
+  return val
+}
+
+function matchesSingleFilter(tab, doc, cond) {
+  const fieldPath = cond.field.trim()
+  const rawVal = getCleanValueAtPath(doc, fieldPath)
+  const op = cond.op
+
+  if (op === 'is-null') return rawVal === null
+  if (op === 'is-not-null') return rawVal !== undefined && rawVal !== null
+  if (rawVal === undefined) return false
+
+  if (op === 'contains') {
+    const needle = String(cond.val ?? '').toLowerCase()
+    const hay = typeof rawVal === 'object' ? JSON.stringify(rawVal).toLowerCase() : String(rawVal).toLowerCase()
+    return hay.includes(needle)
+  }
+  if (op === 'starts-with') {
+    return String(rawVal).startsWith(String(cond.val ?? ''))
+  }
+
+  const typedTarget = buildFilterTypedValue(tab, cond)
+  const targetClean = cleanDocValue(typedTarget)
+
+  if (op === 'array-contains') {
+    if (!Array.isArray(rawVal)) return false
+    const normTarget = normalizeComparable(targetClean)
+    return rawVal.some(el => normalizeComparable(el) === normTarget)
+  }
+  if (op === 'in' || op === 'not-in') {
+    const arr = Array.isArray(targetClean) ? targetClean.map(normalizeComparable) : []
+    const normDoc = normalizeComparable(rawVal)
+    const found = arr.includes(normDoc)
+    return op === 'in' ? found : !found
+  }
+  if (op === 'array-contains-any') {
+    if (!Array.isArray(rawVal) || !Array.isArray(targetClean)) return false
+    const targets = targetClean.map(normalizeComparable)
+    return rawVal.some(el => targets.includes(normalizeComparable(el)))
+  }
+
+  const a = normalizeComparable(rawVal)
+  const b = normalizeComparable(targetClean)
+  if (op === '==') return a === b
+  if (op === '!=') return a !== b
+  if (a === null || b === null) return false
+  if (op === '>') return a > b
+  if (op === '>=') return a >= b
+  if (op === '<') return a < b
+  if (op === '<=') return a <= b
+  return false
+}
+
+async function runClientSideFallbackQuery(tab, activeFilters) {
+  let baseDocs = []
+  if (tab.queryAllDescendants) {
+    const res = await RunSimpleQuery(tab.email, tab.projectId, '', {
+      structuredQuery: {
+        from: [{ collectionId: tab.activeCollection, allDescendants: true }],
+        limit: 1000
+      }
+    })
+    if (Array.isArray(res)) {
+      res.forEach(r => { if (r.document) baseDocs.push(r.document) })
+    }
+  } else {
+    let pageToken = ''
+    for (let page = 0; page < 4; page++) {
+      const res = await ListDocuments(tab.email, tab.projectId, '', tab.activeCollection, 300, pageToken)
+      if (!res) break
+      if (Array.isArray(res.documents)) baseDocs.push(...res.documents)
+      pageToken = res.nextPageToken || ''
+      if (!pageToken) break
+    }
+  }
+
+  let filtered = baseDocs.filter(doc => activeFilters.every(cond => matchesSingleFilter(tab, doc, cond)))
+
+  if (tab.querySortField && tab.querySortField.trim()) {
+    const sortPath = tab.querySortField.trim()
+    const isAsc = tab.querySortDir !== 'desc'
+    filtered.sort((a, b) => {
+      const valA = normalizeComparable(getCleanValueAtPath(a, sortPath))
+      const valB = normalizeComparable(getCleanValueAtPath(b, sortPath))
+      if (valA === null && valB === null) return 0
+      if (valA === null) return isAsc ? -1 : 1
+      if (valB === null) return isAsc ? 1 : -1
+      if (valA < valB) return isAsc ? -1 : 1
+      if (valA > valB) return isAsc ? 1 : -1
+      return 0
+    })
+  }
+
+  const limitNum = parseInt(tab.queryLimit)
+  if (limitNum > 0) {
+    filtered = filtered.slice(0, limitNum)
+  }
+  tab.documents = filtered
+  showToast(`Filtered ${filtered.length} document(s) client-side`)
 }
 
 async function runSimpleQueryAction(tab) {
@@ -2699,54 +3472,112 @@ async function runSimpleQueryAction(tab) {
   tab.loadingDocuments = true
   tab.selectedDocNames = []
   tab.documents = []
-  
+  tab.nextDocPageToken = ''
+
   try {
     if (tab.queryDocId && tab.queryDocId.trim()) {
       const docPath = tab.activeCollection + '/' + tab.queryDocId.trim()
-      const res = await GetDocument(tab.email, tab.projectId, '', docPath)
-      if (res) {
-        tab.documents = [res]
-      }
-    } else {
-      const structuredQuery = {
-        from: [{ collectionId: tab.activeCollection }]
-      }
-      
-      if (tab.queryFilterField && tab.queryFilterVal) {
-        let valObj = {}
-        const rawVal = tab.queryFilterVal.trim()
-        if (rawVal === 'true' || rawVal === 'false') {
-          valObj = { booleanValue: rawVal === 'true' }
-        } else if (!isNaN(rawVal)) {
-          if (rawVal.includes('.')) {
-            valObj = { doubleValue: parseFloat(rawVal) }
-          } else {
-            valObj = { integerValue: rawVal }
-          }
+      try {
+        const res = await GetDocument(tab.email, tab.projectId, '', docPath)
+        if (res) {
+          tab.documents = [res]
+          showToast('Loaded document')
+        }
+      } catch (docErr) {
+        if (String(docErr).includes('status 404')) {
+          tab.documents = []
+          showToast('Document ID not found')
         } else {
-          valObj = { stringValue: rawVal }
+          throw docErr
         }
-        
-        structuredQuery.where = {
-          fieldFilter: {
-            field: { fieldPath: tab.queryFilterField },
-            op: mapSimpleOpToApi(tab.queryFilterOp),
-            value: valObj
+      }
+      return
+    }
+
+    const activeFilters = (tab.queryFilters || []).filter(f =>
+      f.field && f.field.trim() && (
+        f.op === 'is-null' ||
+        f.op === 'is-not-null' ||
+        f.valType === 'null' ||
+        String(f.val ?? '').trim() !== ''
+      )
+    )
+
+    const needsClientFallback = activeFilters.some(f => f.op === 'contains')
+    if (needsClientFallback) {
+      await runClientSideFallbackQuery(tab, activeFilters)
+      return
+    }
+
+    const fromEntry = { collectionId: tab.activeCollection }
+    if (tab.queryAllDescendants) {
+      fromEntry.allDescendants = true
+    }
+
+    const structuredQuery = {
+      from: [fromEntry]
+    }
+
+    const structuredFilters = []
+    for (const cond of activeFilters) {
+      const fieldPath = cond.field.trim()
+      if (cond.op === 'is-null' || cond.op === 'is-not-null') {
+        structuredFilters.push({
+          unaryFilter: {
+            field: { fieldPath },
+            op: cond.op === 'is-null' ? 'IS_NULL' : 'IS_NOT_NULL'
           }
+        })
+      } else if (cond.op === 'starts-with') {
+        const prefix = String(cond.val ?? '')
+        structuredFilters.push({
+          fieldFilter: {
+            field: { fieldPath },
+            op: 'GREATER_THAN_OR_EQUAL',
+            value: { stringValue: prefix }
+          }
+        })
+        structuredFilters.push({
+          fieldFilter: {
+            field: { fieldPath },
+            op: 'LESS_THAN',
+            value: { stringValue: prefix + '\uf8ff' }
+          }
+        })
+      } else {
+        structuredFilters.push({
+          fieldFilter: {
+            field: { fieldPath },
+            op: mapSimpleOpToApi(cond.op),
+            value: buildFilterTypedValue(tab, cond)
+          }
+        })
+      }
+    }
+
+    if (structuredFilters.length === 1) {
+      structuredQuery.where = structuredFilters[0]
+    } else if (structuredFilters.length > 1) {
+      structuredQuery.where = {
+        compositeFilter: {
+          op: 'AND',
+          filters: structuredFilters
         }
       }
-      
-      if (tab.querySortField) {
-        structuredQuery.orderBy = [{
-          field: { fieldPath: tab.querySortField },
-          direction: tab.querySortDir === 'asc' ? 'ASCENDING' : 'DESCENDING'
-        }]
-      }
-      
-      if (tab.queryLimit && tab.queryLimit > 0) {
-        structuredQuery.limit = parseInt(tab.queryLimit)
-      }
-      
+    }
+
+    if (tab.querySortField && tab.querySortField.trim()) {
+      structuredQuery.orderBy = [{
+        field: { fieldPath: tab.querySortField.trim() },
+        direction: tab.querySortDir === 'desc' ? 'DESCENDING' : 'ASCENDING'
+      }]
+    }
+
+    if (tab.queryLimit && tab.queryLimit > 0) {
+      structuredQuery.limit = parseInt(tab.queryLimit)
+    }
+
+    try {
       const res = await RunSimpleQuery(tab.email, tab.projectId, '', { structuredQuery })
       const docs = []
       if (res && Array.isArray(res)) {
@@ -2756,11 +3587,67 @@ async function runSimpleQueryAction(tab) {
       }
       tab.documents = docs
       showToast(`Loaded ${docs.length} document(s)`)
+    } catch (queryErr) {
+      const errMsg = String(queryErr)
+      const isIndexOrConstraintErr =
+        errMsg.includes('FAILED_PRECONDITION') ||
+        errMsg.includes('requires an index') ||
+        errMsg.includes('inequality') ||
+        errMsg.includes('INVALID_ARGUMENT')
+      if (isIndexOrConstraintErr) {
+        await runClientSideFallbackQuery(tab, activeFilters)
+      } else {
+        throw queryErr
+      }
     }
   } catch (err) {
     alert('Failed to run query: ' + err)
   } finally {
     tab.loadingDocuments = false
+  }
+}
+
+function getDisplayedDocuments(tab) {
+  if (!tab || !tab.documents) return []
+  let list = [...tab.documents]
+
+  if (tab.docInstantFilter && tab.docInstantFilter.trim()) {
+    const q = tab.docInstantFilter.trim().toLowerCase()
+    list = list.filter(doc => {
+      const id = getDocId(doc.name).toLowerCase()
+      if (id.includes(q)) return true
+      const cleaned = cleanDocFields(doc.fields)
+      return JSON.stringify(cleaned).toLowerCase().includes(q)
+    })
+  }
+
+  if (tab.tableSortField) {
+    const field = tab.tableSortField
+    const isAsc = tab.tableSortDir !== 'desc'
+    list.sort((a, b) => {
+      let valA = field === '__id__' ? getDocId(a.name) : normalizeComparable(getCleanValueAtPath(a, field))
+      let valB = field === '__id__' ? getDocId(b.name) : normalizeComparable(getCleanValueAtPath(b, field))
+      if (valA === null || valA === undefined) valA = ''
+      if (valB === null || valB === undefined) valB = ''
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        const cmp = valA.localeCompare(valB)
+        return isAsc ? cmp : -cmp
+      }
+      if (valA < valB) return isAsc ? -1 : 1
+      if (valA > valB) return isAsc ? 1 : -1
+      return 0
+    })
+  }
+
+  return list
+}
+
+function toggleTableSort(tab, field) {
+  if (tab.tableSortField === field) {
+    tab.tableSortDir = tab.tableSortDir === 'asc' ? 'desc' : 'asc'
+  } else {
+    tab.tableSortField = field
+    tab.tableSortDir = 'asc'
   }
 }
 
@@ -2780,8 +3667,7 @@ function loadPresetQueryScript(tab) {
 }
 
 function openDocInNewTab(parentTab, doc) {
-  const docId = getDocId(doc.name)
-  const docPath = parentTab.activeCollection + '/' + docId
+  const docPath = getDocRelativePath(parentTab, doc)
   const tabId = `firestore-doc-${parentTab.email}-${parentTab.projectId}-${docPath.replace(/\//g, '-')}`
   const existingTab = openTabs.value.find(t => t.id === tabId)
   
@@ -2794,11 +3680,15 @@ function openDocInNewTab(parentTab, doc) {
       email: parentTab.email,
       projectId: parentTab.projectId,
       searchQuery: '',
+      statusFilter: 'all',
+      selectedUserUids: [],
+      apiSearchActive: false,
       loading: false,
       users: [],
       nextPageToken: '',
       collections: parentTab.collections || [],
       collectionsCollapsed: false,
+      collectionSearch: '',
       activeCollection: parentTab.activeCollection,
       activeDocPath: docPath,
       documents: [doc],
@@ -2808,8 +3698,18 @@ function openDocInNewTab(parentTab, doc) {
       firestoreView: 'explorer',
       resultsView: 'tree',
       selectedDocNames: [],
+      docInstantFilter: '',
+      tableSortField: '',
+      tableSortDir: 'asc',
       queryExpanded: false,
       queryMode: 'js',
+      queryDocId: '',
+      queryAllDescendants: false,
+      queryFilters: [{ field: '', op: '==', val: '', valType: 'auto' }],
+      querySortField: '',
+      querySortDir: 'asc',
+      queryLimit: 50,
+      queryPreset: 'Basic Fetch',
       queryScript: `// Document query\nasync function run() {\n  const doc = await db.doc("${docPath}").get();\n  return doc;\n}`,
       queryOutput: '',
       runningQuery: false
@@ -2830,12 +3730,22 @@ function toggleSelectDoc(tab, docName) {
   }
 }
 
+function areAllDisplayedDocsSelected(tab) {
+  const visible = getDisplayedDocuments(tab)
+  if (visible.length === 0 || !tab.selectedDocNames) return false
+  return visible.every(d => tab.selectedDocNames.includes(d.name))
+}
+
 function toggleSelectAllDocs(tab) {
+  const visible = getDisplayedDocuments(tab)
   if (!tab.selectedDocNames) tab.selectedDocNames = []
-  if (tab.selectedDocNames.length === tab.documents.length) {
-    tab.selectedDocNames = []
+  if (areAllDisplayedDocsSelected(tab)) {
+    const visibleSet = new Set(visible.map(d => d.name))
+    tab.selectedDocNames = tab.selectedDocNames.filter(name => !visibleSet.has(name))
   } else {
-    tab.selectedDocNames = tab.documents.map(d => d.name)
+    const selectedSet = new Set(tab.selectedDocNames)
+    visible.forEach(d => selectedSet.add(d.name))
+    tab.selectedDocNames = Array.from(selectedSet)
   }
 }
 
@@ -2844,17 +3754,22 @@ async function deleteSelectedDocuments(tab) {
   if (count === 0) return
   if (confirm(`Are you sure you want to delete the ${count} selected documents?`)) {
     tab.loadingDocuments = true
+    const deletedNames = new Set()
     try {
       for (const docName of tab.selectedDocNames) {
         const prefix = '/documents/'
         const docIdx = docName.indexOf(prefix)
         const relativePath = docIdx !== -1 ? docName.substring(docIdx + prefix.length) : docName
         await DeleteDocument(tab.email, tab.projectId, '', relativePath, false)
+        deletedNames.add(docName)
       }
-      showToast(`Deleted ${count} documents!`)
+      showToast(`Deleted ${deletedNames.size} document(s)!`)
+      tab.documents = (tab.documents || []).filter(d => !deletedNames.has(d.name))
       tab.selectedDocNames = []
-      fetchDocuments(tab)
     } catch (err) {
+      if (deletedNames.size > 0) {
+        tab.documents = (tab.documents || []).filter(d => !deletedNames.has(d.name))
+      }
       alert('Failed to delete some documents: ' + err)
     } finally {
       tab.loadingDocuments = false
@@ -2941,6 +3856,9 @@ function generateExportString() {
         else if (val === null) row.push('null')
         else if (typeof val === 'object') {
           if (val.__time__) row.push(val.__time__)
+          else if (val.__ref__) row.push(val.__ref__)
+          else if (val.__geopoint__) row.push(`${val.__geopoint__.latitude ?? 0},${val.__geopoint__.longitude ?? 0}`)
+          else if (val.__bytes__) row.push(val.__bytes__)
           else row.push(JSON.stringify(val))
         } else {
           row.push(String(val))
@@ -3017,7 +3935,9 @@ function cleanDocValue(valObj) {
   if ('integerValue' in valObj) return parseInt(valObj.integerValue)
   if ('doubleValue' in valObj) return parseFloat(valObj.doubleValue)
   if ('timestampValue' in valObj) return { __time__: valObj.timestampValue }
-  if ('referenceValue' in valObj) return valObj.referenceValue
+  if ('geoPointValue' in valObj) return { __geopoint__: valObj.geoPointValue }
+  if ('referenceValue' in valObj) return { __ref__: valObj.referenceValue }
+  if ('bytesValue' in valObj) return { __bytes__: valObj.bytesValue }
   if ('mapValue' in valObj) {
     return cleanDocFields(valObj.mapValue.fields || {})
   }
@@ -3057,6 +3977,9 @@ function getColumnValue(doc, col) {
   if (val === null) return 'null'
   if (typeof val === 'object') {
     if (val.__time__) return new Date(val.__time__).toLocaleString()
+    if (val.__ref__) return `→ ${val.__ref__}`
+    if (val.__geopoint__) return `(${val.__geopoint__.latitude ?? 0}, ${val.__geopoint__.longitude ?? 0})`
+    if (val.__bytes__) return `[bytes]`
     return JSON.stringify(val)
   }
   return String(val)
@@ -3100,8 +4023,17 @@ function convertValueToFirestore(val) {
     }
   }
   if (typeof val === 'object') {
-    if (val.__time__) {
+    if ('__time__' in val) {
       return { timestampValue: val.__time__ }
+    }
+    if ('__geopoint__' in val) {
+      return { geoPointValue: val.__geopoint__ }
+    }
+    if ('__ref__' in val) {
+      return { referenceValue: val.__ref__ }
+    }
+    if ('__bytes__' in val) {
+      return { bytesValue: val.__bytes__ }
     }
     const fields = {}
     for (const k in val) {
@@ -3285,8 +4217,7 @@ async function saveNewDoc() {
 
 function editDocumentJSON(tab, doc) {
   activeTabContext.value = tab
-  const docId = getDocId(doc.name)
-  activeDocPath.value = tab.activeCollection + '/' + docId
+  activeDocPath.value = getDocRelativePath(tab, doc)
   activeDocJson.value = JSON.stringify(cleanDocFields(doc.fields), null, 2)
   showDocModal.value = true
 }
@@ -3318,7 +4249,7 @@ async function saveDocFromJSON() {
     await SaveDocument(tab.email, tab.projectId, '', activeDocPath.value, fields, false)
     showDocModal.value = false
     showToast('Document saved!')
-    const targetDoc = tab.documents ? tab.documents.find(d => getDocId(d.name) === getDocId(activeDocPath.value)) : null
+    const targetDoc = tab.documents ? tab.documents.find(d => getDocRelativePath(tab, d) === activeDocPath.value) : null
     if (targetDoc) {
       targetDoc.fields = fields
     }
@@ -3329,16 +4260,149 @@ async function saveDocFromJSON() {
 
 async function deleteDocumentConfirm(tab, doc) {
   const docId = getDocId(doc.name)
-  const path = tab.activeCollection + '/' + docId
+  const path = getDocRelativePath(tab, doc)
   const recursive = confirm(`Delete document ${docId}? Click OK to delete recursively (including subcollections) or Cancel to abort.`)
   if (recursive) {
     try {
       await DeleteDocument(tab.email, tab.projectId, '', path, true)
       showToast(`Document ${docId} deleted!`)
-      fetchDocuments(tab)
+      tab.documents = (tab.documents || []).filter(d => d.name !== doc.name)
+      tab.selectedDocNames = (tab.selectedDocNames || []).filter(n => n !== doc.name)
     } catch (err) {
       alert('Failed to delete document: ' + err)
     }
+  }
+}
+
+function openDuplicateDocModal(tab, doc) {
+  const relPath = getDocRelativePath(tab, doc)
+  const parts = relPath.split('/')
+  const docId = parts.pop() || getDocId(doc.name)
+  const parentCol = parts.join('/') || tab.activeCollection
+  duplicateDocForm.sourcePath = relPath
+  duplicateDocForm.targetCollection = parentCol
+  duplicateDocForm.newDocId = `${docId}_copy`
+  duplicateDocForm.fields = JSON.parse(JSON.stringify(doc.fields || {}))
+  duplicateDocForm.tab = tab
+  showDuplicateDocModal.value = true
+}
+
+async function confirmDuplicateDoc() {
+  const tab = duplicateDocForm.tab
+  if (!tab) return
+  const targetCol = duplicateDocForm.targetCollection.trim().replace(/^\/+|\/+$/g, '')
+  const newId = duplicateDocForm.newDocId.trim() || generateId()
+  if (!targetCol) {
+    alert('Target collection path is required')
+    return
+  }
+  duplicatingDoc.value = true
+  try {
+    const destPath = `${targetCol}/${newId}`
+    const created = await SaveDocument(tab.email, tab.projectId, '', destPath, duplicateDocForm.fields, true)
+    showDuplicateDocModal.value = false
+    showToast(`Duplicated as ${newId}!`)
+    if (targetCol === tab.activeCollection && created) {
+      tab.documents.unshift(created)
+    }
+  } catch (err) {
+    alert('Failed to duplicate document: ' + err)
+  } finally {
+    duplicatingDoc.value = false
+  }
+}
+
+function openImportDocsModal(tab) {
+  activeTabContext.value = tab
+  importDocsJsonInput.value = ''
+  parsedImportDocsList.value = null
+  importDocsOverwrite.value = true
+  showImportDocsModal.value = true
+}
+
+function triggerImportDocsFilePicker() {
+  const el = document.getElementById('firestore-import-file-input')
+  if (el) el.click()
+}
+
+function onImportDocsFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    importDocsJsonInput.value = e.target.result
+    parseImportDocsInput()
+  }
+  reader.readAsText(file)
+}
+
+function parseImportDocsInput() {
+  parsedImportDocsList.value = null
+  const text = importDocsJsonInput.value.trim()
+  if (!text) return
+
+  try {
+    const raw = JSON.parse(text)
+    const docs = []
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+        const keys = Object.keys(item)
+        const isExportShape = 'fields' in item && typeof item.fields === 'object' && !Array.isArray(item.fields) && keys.every(k => ['id', 'path', 'fields'].includes(k))
+        if (isExportShape) {
+          docs.push({ id: item.id ? String(item.id) : '', fieldsObj: item.fields })
+        } else {
+          const docId = (typeof item.id === 'string' || typeof item.id === 'number') ? String(item.id) : ''
+          const fieldsCopy = { ...item }
+          if (docId) delete fieldsCopy.id
+          docs.push({ id: docId, fieldsObj: fieldsCopy })
+        }
+      }
+    } else if (raw && typeof raw === 'object') {
+      for (const [docId, docFields] of Object.entries(raw)) {
+        if (docFields && typeof docFields === 'object' && !Array.isArray(docFields)) {
+          docs.push({ id: docId, fieldsObj: docFields })
+        }
+      }
+    }
+    parsedImportDocsList.value = docs
+  } catch (e) {
+    parsedImportDocsList.value = []
+  }
+}
+
+async function runImportDocs() {
+  const tab = activeTabContext.value
+  const list = parsedImportDocsList.value
+  if (!tab || !tab.activeCollection || !list || list.length === 0) return
+
+  importingDocs.value = true
+  let imported = 0
+  let failed = 0
+  const errors = []
+
+  try {
+    for (const item of list) {
+      const docId = (item.id && item.id.trim()) ? item.id.trim() : generateId()
+      const path = `${tab.activeCollection}/${docId}`
+      const fields = prepareFieldsForSaving(item.fieldsObj)
+      try {
+        await SaveDocument(tab.email, tab.projectId, '', path, fields, !importDocsOverwrite.value)
+        imported++
+      } catch (err) {
+        failed++
+        errors.push(`${docId}: ${err}`)
+      }
+    }
+    showImportDocsModal.value = false
+    if (failed === 0) {
+      showToast(`Imported ${imported} document(s)!`)
+    } else {
+      showNotification('Import Completed with Errors', `Imported: ${imported}\nFailed: ${failed}\n\n${errors.slice(0, 10).join('\n')}`, 'error')
+    }
+    fetchDocuments(tab)
+  } finally {
+    importingDocs.value = false
   }
 }
 
@@ -3348,12 +4412,31 @@ async function runQueryScript(tab) {
   tab.queryOutput = ''
   try {
     const res = await RunJSScript(tab.email, tab.projectId, '', tab.queryScript)
-    if (res && res.logs) {
-      tab.queryOutput = res.logs.join('\n')
-    } else {
-      tab.queryOutput = JSON.stringify(res, null, 2)
+    let outputSections = []
+    let resultPayload = res
+    if (res && typeof res === 'object' && !Array.isArray(res) && Array.isArray(res.logs)) {
+      if (res.logs.length > 0) {
+        outputSections.push('// Console Output\n' + res.logs.join('\n'))
+      }
+      resultPayload = res.result
     }
-    showToast('Script executed successfully!')
+    if (resultPayload !== undefined) {
+      outputSections.push(JSON.stringify(resultPayload, null, 2))
+    }
+    tab.queryOutput = outputSections.join('\n\n') || 'undefined'
+
+    // If script returned snapshot docs [{ id, path, data }], populate Tree/Table/JSON viewer
+    if (Array.isArray(resultPayload) && resultPayload.every(item => item && typeof item === 'object' && 'id' in item && 'data' in item)) {
+      tab.documents = resultPayload.map(item => ({
+        name: `projects/${tab.projectId}/databases/(default)/documents/${item.path || (tab.activeCollection + '/' + item.id)}`,
+        fields: convertJsonToFirestoreFields(item.data || {})
+      }))
+      tab.selectedDocNames = []
+      tab.nextDocPageToken = ''
+      showToast(`Script executed — ${resultPayload.length} doc(s) loaded into viewer!`)
+    } else {
+      showToast('Script executed successfully!')
+    }
   } catch (err) {
     tab.queryOutput = 'Error running script:\n' + err
   } finally {
@@ -3365,8 +4448,13 @@ async function runQueryScript(tab) {
 function openCopyWizard(tab) {
   activeTabContext.value = tab
   activeCopySource.value = `${tab.projectId} (${tab.email})`
-  copyWizard.path = tab.activeCollection || ''
-  copyWizard.type = 'collection'
+  if (tab.activeDocPath) {
+    copyWizard.path = tab.activeDocPath
+    copyWizard.type = 'document'
+  } else {
+    copyWizard.path = tab.activeCollection || ''
+    copyWizard.type = 'collection'
+  }
   copyWizard.destEmail = accounts.value[0]?.email || ''
   copyWizard.destProjectId = ''
   copyWizard.overwrite = false

@@ -96,6 +96,8 @@ func dispatchRPC(app *App, req RPCRequest) (interface{}, error) {
 	switch req.Method {
 	case "GetAccounts":
 		return app.GetAccounts(), nil
+	case "RemoveAccount":
+		return nil, app.RemoveAccount(getStr(0))
 	case "ListProjects":
 		return app.ListProjects(getStr(0))
 	case "ListAuthUsers":

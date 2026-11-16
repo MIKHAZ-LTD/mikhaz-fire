@@ -49,6 +49,9 @@
             <option value="number">number</option>
             <option value="boolean">boolean</option>
             <option value="timestamp">timestamp</option>
+            <option value="reference">reference</option>
+            <option value="geopoint">geopoint</option>
+            <option value="bytes">bytes</option>
             <option value="null">null</option>
           </select>
 
@@ -176,6 +179,18 @@
             size="xs" 
             color="neutral" 
             variant="subtle" 
+            icon="i-heroicons-document-duplicate"
+            type="button" 
+            @click.stop="$emit('duplicateDoc')"
+            title="Duplicate document"
+            class="text-[10px] px-1.5 py-0.5"
+          >
+            Dup
+          </UButton>
+          <UButton 
+            size="xs" 
+            color="neutral" 
+            variant="subtle" 
             icon="i-heroicons-code-bracket"
             type="button" 
             @click.stop="$emit('editJson')"
@@ -244,13 +259,23 @@
         <option value="array">array</option>
         <option value="null">null</option>
         <option value="timestamp">timestamp</option>
+        <option value="reference">reference</option>
+        <option value="geopoint">geopoint</option>
       </select>
 
       <input 
-        v-if="newFieldType === 'string'"
+        v-if="newFieldType === 'string' || newFieldType === 'reference'"
         v-model="newFieldValue"
-        placeholder="Value"
+        :placeholder="newFieldType === 'reference' ? 'collection/docId' : 'Value'"
         class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-30 focus:border-amber-500"
+        @keydown.enter.prevent.stop="saveAddField"
+        @keydown.esc.prevent.stop="cancelAddField"
+      />
+      <input 
+        v-else-if="newFieldType === 'geopoint'"
+        v-model="newFieldValue"
+        placeholder="lat, lng (e.g. 24.7136, 46.6753)"
+        class="bg-[#090a0f] border border-white/15 text-white rounded px-2 py-1 text-xs font-mono outline-none flex-1 min-w-36 focus:border-amber-500"
         @keydown.enter.prevent.stop="saveAddField"
         @keydown.esc.prevent.stop="cancelAddField"
       />
@@ -408,7 +433,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'change', 'addField', 'deleteField', 'editJson', 'deleteDoc', 'openTab',
+  'change', 'addField', 'deleteField', 'editJson', 'deleteDoc', 'duplicateDoc', 'openTab',
   'fetchSubcollections', 'openSubcollection', 'openSubcollectionInNewTab'
 ])
 
@@ -435,7 +460,10 @@ const displayType = computed(() => {
   if (props.value === null) return 'null'
   if (Array.isArray(props.value)) return 'array'
   if (typeof props.value === 'object') {
-    if (props.value && props.value.__time__) return 'timestamp'
+    if (props.value && '__time__' in props.value) return 'timestamp'
+    if (props.value && '__geopoint__' in props.value) return 'geopoint'
+    if (props.value && '__ref__' in props.value) return 'reference'
+    if (props.value && '__bytes__' in props.value) return 'bytes'
     return 'map'
   }
   return typeof props.value
@@ -452,6 +480,9 @@ const badgeClass = computed(() => {
     case 'number': return 'bg-amber-500/10 text-amber-400 border-amber-500/25'
     case 'boolean': return 'bg-purple-500/10 text-purple-400 border-purple-500/25'
     case 'timestamp': return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+    case 'geopoint': return 'bg-teal-500/10 text-teal-400 border-teal-500/25'
+    case 'reference': return 'bg-pink-500/10 text-pink-400 border-pink-500/25'
+    case 'bytes': return 'bg-slate-500/10 text-slate-300 border-slate-500/25'
     case 'map': return 'bg-sky-500/10 text-sky-400 border-sky-500/25'
     case 'array': return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/25'
     case 'null': return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/25'
@@ -465,6 +496,9 @@ const valueColorClass = computed(() => {
     case 'number': return 'text-amber-300'
     case 'boolean': return 'text-purple-300 font-semibold'
     case 'timestamp': return 'text-cyan-300'
+    case 'geopoint': return 'text-teal-300'
+    case 'reference': return 'text-pink-300'
+    case 'bytes': return 'text-slate-300'
     case 'null': return 'text-zinc-500 italic'
     default: return 'text-zinc-200'
   }
@@ -500,11 +534,29 @@ function formatValue(val) {
   if (displayType.value === 'timestamp') {
     return new Date(val.__time__).toLocaleString()
   }
+  if (displayType.value === 'geopoint') {
+    const gp = val.__geopoint__ || {}
+    return `(${gp.latitude ?? 0}, ${gp.longitude ?? 0})`
+  }
+  if (displayType.value === 'reference') {
+    return `→ ${val.__ref__ || ''}`
+  }
+  if (displayType.value === 'bytes') {
+    const b = String(val.__bytes__ || '')
+    return `[bytes: ${b.length > 24 ? b.slice(0, 24) + '...' : b}]`
+  }
   return String(val)
 }
 
 function copyValueToClipboard() {
-  const str = displayType.value === 'timestamp' ? props.value.__time__ : (props.value === null ? 'null' : String(props.value))
+  let str = ''
+  if (displayType.value === 'timestamp') str = props.value.__time__
+  else if (displayType.value === 'geopoint') {
+    const gp = props.value.__geopoint__ || {}
+    str = `${gp.latitude ?? 0}, ${gp.longitude ?? 0}`
+  } else if (displayType.value === 'reference') str = props.value.__ref__ || ''
+  else if (displayType.value === 'bytes') str = props.value.__bytes__ || ''
+  else str = props.value === null ? 'null' : String(props.value)
   navigator.clipboard.writeText(str)
 }
 
@@ -514,6 +566,13 @@ function startEdit() {
   editType.value = displayType.value
   if (displayType.value === 'timestamp') {
     editValue.value = props.value.__time__
+  } else if (displayType.value === 'geopoint') {
+    const gp = props.value.__geopoint__ || {}
+    editValue.value = `${gp.latitude ?? 0}, ${gp.longitude ?? 0}`
+  } else if (displayType.value === 'reference') {
+    editValue.value = props.value.__ref__ || ''
+  } else if (displayType.value === 'bytes') {
+    editValue.value = props.value.__bytes__ || ''
   } else {
     editValue.value = displayType.value === 'null' ? '' : props.value
   }
@@ -528,8 +587,10 @@ function startEdit() {
 }
 
 function onEditTypeChange() {
-  if (editType.value === 'string') {
+  if (editType.value === 'string' || editType.value === 'reference' || editType.value === 'bytes') {
     editValue.value = ''
+  } else if (editType.value === 'geopoint') {
+    editValue.value = '0, 0'
   } else if (editType.value === 'number') {
     editValue.value = 0
   } else if (editType.value === 'boolean') {
@@ -555,6 +616,17 @@ function saveEdit() {
     parsedVal = null
   } else if (editType.value === 'timestamp') {
     parsedVal = { __time__: editValue.value }
+  } else if (editType.value === 'geopoint') {
+    const parts = String(editValue.value).split(',').map(s => Number(s.trim()))
+    if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+      alert('Geopoint must be "latitude, longitude"')
+      return
+    }
+    parsedVal = { __geopoint__: { latitude: parts[0], longitude: parts[1] } }
+  } else if (editType.value === 'reference') {
+    parsedVal = { __ref__: String(editValue.value).trim() }
+  } else if (editType.value === 'bytes') {
+    parsedVal = { __bytes__: String(editValue.value).trim() }
   } else if (editType.value === 'string') {
     parsedVal = String(editValue.value)
   }
@@ -581,8 +653,10 @@ function startAddField() {
 }
 
 function onNewFieldTypeChange() {
-  if (newFieldType.value === 'string') {
+  if (newFieldType.value === 'string' || newFieldType.value === 'reference') {
     newFieldValue.value = ''
+  } else if (newFieldType.value === 'geopoint') {
+    newFieldValue.value = '0, 0'
   } else if (newFieldType.value === 'number') {
     newFieldValue.value = 0
   } else if (newFieldType.value === 'boolean') {
@@ -620,6 +694,15 @@ function saveAddField() {
     finalVal = null
   } else if (newFieldType.value === 'timestamp') {
     finalVal = { __time__: newFieldValue.value }
+  } else if (newFieldType.value === 'reference') {
+    finalVal = { __ref__: String(newFieldValue.value).trim() }
+  } else if (newFieldType.value === 'geopoint') {
+    const parts = String(newFieldValue.value).split(',').map(s => Number(s.trim()))
+    if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+      alert('Geopoint must be "latitude, longitude"')
+      return
+    }
+    finalVal = { __geopoint__: { latitude: parts[0], longitude: parts[1] } }
   }
 
   isAddingField.value = false

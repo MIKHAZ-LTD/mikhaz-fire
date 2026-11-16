@@ -34,6 +34,8 @@ export function ListRootCollections(arg1:string,arg2:string,arg3:string):Promise
 
 export function LoginGoogleAccount():Promise<main.Account>;
 
+export function RemoveAccount(arg1:string):Promise<void>;
+
 export function RunJSScript(arg1:string,arg2:string,arg3:string,arg4:string):Promise<any>;
 
 export function RunSimpleQuery(arg1:string,arg2:string,arg3:string,arg4:Record<string, any>):Promise<any>;

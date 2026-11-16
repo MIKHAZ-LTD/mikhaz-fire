@@ -7,7 +7,6 @@ import (
 	"github.com/dop251/goja"
 )
 
-
 type JSQueryRunner struct {
 	token      string
 	projectId  string
@@ -38,16 +37,34 @@ func toFirestoreValue(val interface{}) map[string]interface{} {
 		return map[string]interface{}{"stringValue": v}
 	case int:
 		return map[string]interface{}{"integerValue": fmt.Sprintf("%d", v)}
+	case int32:
+		return map[string]interface{}{"integerValue": fmt.Sprintf("%d", v)}
 	case int64:
 		return map[string]interface{}{"integerValue": fmt.Sprintf("%d", v)}
+	case float32:
+		if float32(int64(v)) == v {
+			return map[string]interface{}{"integerValue": fmt.Sprintf("%d", int64(v))}
+		}
+		return map[string]interface{}{"doubleValue": float64(v)}
 	case float64:
 		if float64(int64(v)) == v {
 			return map[string]interface{}{"integerValue": fmt.Sprintf("%d", int64(v))}
 		}
 		return map[string]interface{}{"doubleValue": v}
 	case map[string]interface{}:
-		if tStr, ok := v["__time__"].(string); ok && len(v) == 1 {
-			return map[string]interface{}{"timestampValue": tStr}
+		if len(v) == 1 {
+			if tStr, ok := v["__time__"].(string); ok {
+				return map[string]interface{}{"timestampValue": tStr}
+			}
+			if gp, ok := v["__geopoint__"]; ok {
+				return map[string]interface{}{"geoPointValue": gp}
+			}
+			if refStr, ok := v["__ref__"].(string); ok {
+				return map[string]interface{}{"referenceValue": refStr}
+			}
+			if bStr, ok := v["__bytes__"].(string); ok {
+				return map[string]interface{}{"bytesValue": bStr}
+			}
 		}
 		fields := make(map[string]interface{})
 		for k, valItem := range v {
@@ -55,7 +72,7 @@ func toFirestoreValue(val interface{}) map[string]interface{} {
 		}
 		return map[string]interface{}{"mapValue": map[string]interface{}{"fields": fields}}
 	case []interface{}:
-		var values []interface{}
+		values := []interface{}{}
 		for _, item := range v {
 			values = append(values, toFirestoreValue(item))
 		}
@@ -82,7 +99,9 @@ func fromFirestoreValue(fieldVal map[string]interface{}) interface{} {
 	}
 	if val, ok := fieldVal["integerValue"]; ok {
 		var i int64
-		_, _ = fmt.Sscanf(val.(string), "%d", &i)
+		if str, ok := val.(string); ok {
+			_, _ = fmt.Sscanf(str, "%d", &i)
+		}
 		return i
 	}
 	if val, ok := fieldVal["doubleValue"]; ok {
@@ -93,8 +112,20 @@ func fromFirestoreValue(fieldVal map[string]interface{}) interface{} {
 			"__time__": val,
 		}
 	}
+	if val, ok := fieldVal["geoPointValue"]; ok {
+		return map[string]interface{}{
+			"__geopoint__": val,
+		}
+	}
 	if val, ok := fieldVal["referenceValue"]; ok {
-		return val
+		return map[string]interface{}{
+			"__ref__": val,
+		}
+	}
+	if val, ok := fieldVal["bytesValue"]; ok {
+		return map[string]interface{}{
+			"__bytes__": val,
+		}
 	}
 	if val, ok := fieldVal["mapValue"]; ok {
 		m, ok := val.(map[string]interface{})
@@ -122,7 +153,7 @@ func fromFirestoreValue(fieldVal map[string]interface{}) interface{} {
 		if !ok {
 			return []interface{}{}
 		}
-		var res []interface{}
+		res := []interface{}{}
 		for _, v := range values {
 			if fv, ok := v.(map[string]interface{}); ok {
 				res = append(res, fromFirestoreValue(fv))
@@ -158,13 +189,35 @@ type JSDocumentRef struct {
 }
 
 type JSDocumentSnapshot struct {
-	Id   string                 `json:"id"`
-	Ref  *JSDocumentRef         `json:"ref"`
-	Data func() map[string]interface{} `json:"data"`
+	Id     string                        `json:"id"`
+	Path   string                        `json:"path"`
+	Exists bool                          `json:"exists"`
+	Ref    *JSDocumentRef                `json:"ref"`
+	Data   func() map[string]interface{} `json:"data"`
 }
 
 type JSQuerySnapshot struct {
-	Docs []*JSDocumentSnapshot `json:"docs"`
+	vm    *goja.Runtime
+	Docs  []*JSDocumentSnapshot `json:"docs"`
+	Size  int                   `json:"size"`
+	Empty bool                  `json:"empty"`
+}
+
+func (s *JSQuerySnapshot) ForEach(call goja.FunctionCall) goja.Value {
+	if len(call.Arguments) == 0 {
+		return goja.Undefined()
+	}
+	fn, ok := goja.AssertFunction(call.Arguments[0])
+	if !ok {
+		return goja.Undefined()
+	}
+	for _, doc := range s.Docs {
+		_, err := fn(goja.Undefined(), s.vm.ToValue(doc))
+		if err != nil {
+			panic(err)
+		}
+	}
+	return goja.Undefined()
 }
 
 type JSCollectionRef struct {
@@ -174,16 +227,17 @@ type JSCollectionRef struct {
 }
 
 type JSQueryRef struct {
-	vm       *goja.Runtime
-	runner   *JSQueryRunner
-	collPath string
-	limit    int
-	filters  []map[string]interface{}
-	sorts    []map[string]interface{}
+	vm             *goja.Runtime
+	runner         *JSQueryRunner
+	collPath       string
+	allDescendants bool
+	limit          int
+	filters        []map[string]interface{}
+	sorts          []map[string]interface{}
 }
 
 func (c *JSCollectionRef) Doc(id string) *JSDocumentRef {
-	docPath := c.Path + "/" + id
+	docPath := strings.TrimRight(c.Path, "/") + "/" + strings.TrimLeft(id, "/")
 	return &JSDocumentRef{
 		vm:     c.vm,
 		runner: c.runner,
@@ -212,24 +266,41 @@ func (c *JSCollectionRef) Get() goja.Value {
 	return q.Get()
 }
 
+func (q *JSQueryRef) clone() *JSQueryRef {
+	filtersCopy := make([]map[string]interface{}, len(q.filters))
+	copy(filtersCopy, q.filters)
+	sortsCopy := make([]map[string]interface{}, len(q.sorts))
+	copy(sortsCopy, q.sorts)
+	return &JSQueryRef{
+		vm:             q.vm,
+		runner:         q.runner,
+		collPath:       q.collPath,
+		allDescendants: q.allDescendants,
+		limit:          q.limit,
+		filters:        filtersCopy,
+		sorts:          sortsCopy,
+	}
+}
+
 func (q *JSQueryRef) Limit(n int) *JSQueryRef {
-	q.limit = n
-	return q
+	next := q.clone()
+	next.limit = n
+	return next
 }
 
 func (q *JSQueryRef) Where(field, op string, val interface{}) *JSQueryRef {
 	opMap := map[string]string{
-		"==":             "EQUAL",
-		"=":              "EQUAL",
-		"<":              "LESS_THAN",
-		"<=":             "LESS_THAN_OR_EQUAL",
-		">":              "GREATER_THAN",
-		">=":             "GREATER_THAN_OR_EQUAL",
-		"array-contains": "ARRAY_CONTAINS",
-		"in":             "IN",
+		"==":                 "EQUAL",
+		"=":                  "EQUAL",
+		"<":                  "LESS_THAN",
+		"<=":                 "LESS_THAN_OR_EQUAL",
+		">":                  "GREATER_THAN",
+		">=":                 "GREATER_THAN_OR_EQUAL",
+		"array-contains":     "ARRAY_CONTAINS",
+		"in":                 "IN",
 		"array-contains-any": "ARRAY_CONTAINS_ANY",
-		"not-in":         "NOT_IN",
-		"!=":             "NOT_EQUAL",
+		"not-in":             "NOT_IN",
+		"!=":                 "NOT_EQUAL",
 	}
 
 	mappedOp, ok := opMap[op]
@@ -237,22 +308,41 @@ func (q *JSQueryRef) Where(field, op string, val interface{}) *JSQueryRef {
 		mappedOp = op
 	}
 
-	filter := map[string]interface{}{
-		"fieldFilter": map[string]interface{}{
-			"field": map[string]interface{}{
-				"fieldPath": field,
+	var filter map[string]interface{}
+	if val == nil && (mappedOp == "EQUAL" || mappedOp == "NOT_EQUAL") {
+		unaryOp := "IS_NULL"
+		if mappedOp == "NOT_EQUAL" {
+			unaryOp = "IS_NOT_NULL"
+		}
+		filter = map[string]interface{}{
+			"unaryFilter": map[string]interface{}{
+				"field": map[string]interface{}{
+					"fieldPath": field,
+				},
+				"op": unaryOp,
 			},
-			"op":    mappedOp,
-			"value": toFirestoreValue(val),
-		},
+		}
+	} else {
+		filter = map[string]interface{}{
+			"fieldFilter": map[string]interface{}{
+				"field": map[string]interface{}{
+					"fieldPath": field,
+				},
+				"op":    mappedOp,
+				"value": toFirestoreValue(val),
+			},
+		}
 	}
-	q.filters = append(q.filters, filter)
-	return q
+
+	next := q.clone()
+	next.filters = append(next.filters, filter)
+	return next
 }
 
 func (q *JSQueryRef) OrderBy(field, dir string) *JSQueryRef {
 	direction := "ASCENDING"
-	if strings.ToUpper(dir) == "DESC" || strings.ToUpper(dir) == "DESCENDING" {
+	upperDir := strings.ToUpper(strings.TrimSpace(dir))
+	if upperDir == "DESC" || upperDir == "DESCENDING" {
 		direction = "DESCENDING"
 	}
 	sort := map[string]interface{}{
@@ -261,8 +351,9 @@ func (q *JSQueryRef) OrderBy(field, dir string) *JSQueryRef {
 		},
 		"direction": direction,
 	}
-	q.sorts = append(q.sorts, sort)
-	return q
+	next := q.clone()
+	next.sorts = append(next.sorts, sort)
+	return next
 }
 
 func (q *JSQueryRef) Get() goja.Value {
@@ -279,41 +370,60 @@ func (q *JSQueryRef) Get() goja.Value {
 	return q.vm.ToValue(promise)
 }
 
+func (q *JSQueryRef) buildSnapshotDoc(docMap map[string]interface{}) *JSDocumentSnapshot {
+	docName, _ := docMap["name"].(string)
+	parts := strings.Split(docName, "/")
+	docId := ""
+	if len(parts) > 0 {
+		docId = parts[len(parts)-1]
+	}
+
+	docRelPath := q.collPath + "/" + docId
+	if idx := strings.Index(docName, "/documents/"); idx != -1 {
+		docRelPath = docName[idx+len("/documents/"):]
+	}
+
+	ref := &JSDocumentRef{
+		vm:     q.vm,
+		runner: q.runner,
+		Id:     docId,
+		Path:   docRelPath,
+	}
+
+	fieldsData := fromFirestoreDocument(docMap)
+	return &JSDocumentSnapshot{
+		Id:     docId,
+		Path:   docRelPath,
+		Exists: true,
+		Ref:    ref,
+		Data: func() map[string]interface{} {
+			return fieldsData
+		},
+	}
+}
+
 func (q *JSQueryRef) execute() (*JSQuerySnapshot, error) {
-	if len(q.filters) == 0 && len(q.sorts) == 0 {
+	if !q.allDescendants && len(q.filters) == 0 && len(q.sorts) == 0 {
 		resp, err := ListDocuments(q.runner.token, q.runner.projectId, q.runner.databaseId, q.collPath, q.limit, "")
 		if err != nil {
 			return nil, err
 		}
 
 		rawDocs, _ := resp["documents"].([]interface{})
-		var snapDocs []*JSDocumentSnapshot
+		snapDocs := []*JSDocumentSnapshot{}
 		for _, rd := range rawDocs {
 			docMap, ok := rd.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			docName, _ := docMap["name"].(string)
-			parts := strings.Split(docName, "/")
-			docId := parts[len(parts)-1]
-
-			ref := &JSDocumentRef{
-				vm:     q.vm,
-				runner: q.runner,
-				Id:     docId,
-				Path:   q.collPath + "/" + docId,
-			}
-			
-			fieldsData := fromFirestoreDocument(docMap)
-			snapDocs = append(snapDocs, &JSDocumentSnapshot{
-				Id:  docId,
-				Ref: ref,
-				Data: func() map[string]interface{} {
-					return fieldsData
-				},
-			})
+			snapDocs = append(snapDocs, q.buildSnapshotDoc(docMap))
 		}
-		return &JSQuerySnapshot{Docs: snapDocs}, nil
+		return &JSQuerySnapshot{
+			vm:    q.vm,
+			Docs:  snapDocs,
+			Size:  len(snapDocs),
+			Empty: len(snapDocs) == 0,
+		}, nil
 	}
 
 	var filter map[string]interface{}
@@ -328,12 +438,15 @@ func (q *JSQueryRef) execute() (*JSQuerySnapshot, error) {
 		}
 	}
 
+	fromEntry := map[string]interface{}{
+		"collectionId": q.collPath,
+	}
+	if q.allDescendants {
+		fromEntry["allDescendants"] = true
+	}
+
 	structuredQuery := map[string]interface{}{
-		"from": []map[string]interface{}{
-			{
-				"collectionId": q.collPath,
-			},
-		},
+		"from": []map[string]interface{}{fromEntry},
 	}
 
 	if filter != nil {
@@ -357,10 +470,15 @@ func (q *JSQueryRef) execute() (*JSQuerySnapshot, error) {
 
 	results, ok := res.([]interface{})
 	if !ok {
-		return &JSQuerySnapshot{Docs: []*JSDocumentSnapshot{}}, nil
+		return &JSQuerySnapshot{
+			vm:    q.vm,
+			Docs:  []*JSDocumentSnapshot{},
+			Size:  0,
+			Empty: true,
+		}, nil
 	}
 
-	var snapDocs []*JSDocumentSnapshot
+	snapDocs := []*JSDocumentSnapshot{}
 	for _, r := range results {
 		resMap, ok := r.(map[string]interface{})
 		if !ok {
@@ -370,42 +488,38 @@ func (q *JSQueryRef) execute() (*JSQuerySnapshot, error) {
 		if !ok {
 			continue
 		}
-
-		docName, _ := docMap["name"].(string)
-		parts := strings.Split(docName, "/")
-		docId := parts[len(parts)-1]
-
-		ref := &JSDocumentRef{
-			vm:     q.vm,
-			runner: q.runner,
-			Id:     docId,
-			Path:   q.collPath + "/" + docId,
-		}
-
-		fieldsData := fromFirestoreDocument(docMap)
-		snapDocs = append(snapDocs, &JSDocumentSnapshot{
-			Id:  docId,
-			Ref: ref,
-			Data: func() map[string]interface{} {
-				return fieldsData
-			},
-		})
+		snapDocs = append(snapDocs, q.buildSnapshotDoc(docMap))
 	}
 
-	return &JSQuerySnapshot{Docs: snapDocs}, nil
+	return &JSQuerySnapshot{
+		vm:    q.vm,
+		Docs:  snapDocs,
+		Size:  len(snapDocs),
+		Empty: len(snapDocs) == 0,
+	}, nil
+}
+
+func (d *JSDocumentRef) Collection(subCol string) *JSCollectionRef {
+	return &JSCollectionRef{
+		vm:     d.vm,
+		runner: d.runner,
+		Path:   strings.TrimRight(d.Path, "/") + "/" + strings.TrimLeft(subCol, "/"),
+	}
 }
 
 func (d *JSDocumentRef) Get() goja.Value {
 	promise, resolve, reject := d.vm.NewPromise()
-	
+
 	docMap, err := GetDocument(d.runner.token, d.runner.projectId, d.runner.databaseId, d.Path)
 	if err != nil {
 		_ = reject(d.vm.ToValue(err.Error()))
 	} else {
 		fieldsData := fromFirestoreDocument(docMap)
 		snap := &JSDocumentSnapshot{
-			Id:  d.Id,
-			Ref: d,
+			Id:     d.Id,
+			Path:   d.Path,
+			Exists: true,
+			Ref:    d,
 			Data: func() map[string]interface{} {
 				return fieldsData
 			},
@@ -418,7 +532,7 @@ func (d *JSDocumentRef) Get() goja.Value {
 
 func (d *JSDocumentRef) Set(data map[string]interface{}) goja.Value {
 	promise, resolve, reject := d.vm.NewPromise()
-	
+
 	fields := make(map[string]interface{})
 	for k, v := range data {
 		fields[k] = toFirestoreValue(v)
@@ -439,7 +553,7 @@ func (d *JSDocumentRef) Update(data map[string]interface{}) goja.Value {
 
 func (d *JSDocumentRef) Delete() goja.Value {
 	promise, resolve, reject := d.vm.NewPromise()
-	
+
 	err := DeleteDocument(d.runner.token, d.runner.projectId, d.runner.databaseId, d.Path)
 	if err != nil {
 		_ = reject(d.vm.ToValue(err.Error()))
@@ -450,11 +564,52 @@ func (d *JSDocumentRef) Delete() goja.Value {
 	return d.vm.ToValue(promise)
 }
 
+func formatConsoleArgs(args []goja.Value) string {
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == nil || goja.IsUndefined(arg) {
+			parts = append(parts, "undefined")
+			continue
+		}
+		if goja.IsNull(arg) {
+			parts = append(parts, "null")
+			continue
+		}
+		exported := arg.Export()
+		if _, ok := exported.(string); ok {
+			parts = append(parts, fmt.Sprintf("%v", exported))
+		} else {
+			parts = append(parts, fmt.Sprintf("%+v", cleanGojaExport(exported)))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 // Main execution function
 func RunJSScript(token, projectId, databaseId, script string) (interface{}, error) {
 	vm := goja.New()
+	vm.SetFieldNameMapper(goja.UncapFieldNameMapper())
 
 	runner := NewJSQueryRunner(token, projectId, databaseId)
+	var logs []string
+
+	// Inject console object
+	consoleObj := vm.NewObject()
+	appendLog := func(prefix string) func(goja.FunctionCall) goja.Value {
+		return func(call goja.FunctionCall) goja.Value {
+			msg := formatConsoleArgs(call.Arguments)
+			if prefix != "" {
+				msg = prefix + " " + msg
+			}
+			logs = append(logs, msg)
+			return goja.Undefined()
+		}
+	}
+	_ = consoleObj.Set("log", appendLog(""))
+	_ = consoleObj.Set("info", appendLog("[INFO]"))
+	_ = consoleObj.Set("warn", appendLog("[WARN]"))
+	_ = consoleObj.Set("error", appendLog("[ERROR]"))
+	_ = vm.Set("console", consoleObj)
 
 	// Inject global db object
 	dbObj := vm.NewObject()
@@ -462,11 +617,40 @@ func RunJSScript(token, projectId, databaseId, script string) (interface{}, erro
 		if len(call.Arguments) < 1 {
 			panic(vm.ToValue("collection() requires a collection path"))
 		}
-		path := call.Arguments[0].String()
+		path := strings.Trim(call.Arguments[0].String(), "/")
 		return vm.ToValue(&JSCollectionRef{
 			vm:     vm,
 			runner: runner,
 			Path:   path,
+		})
+	})
+	_ = dbObj.Set("doc", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.ToValue("doc() requires a document path"))
+		}
+		docPath := strings.Trim(call.Arguments[0].String(), "/")
+		parts := strings.Split(docPath, "/")
+		docId := ""
+		if len(parts) > 0 {
+			docId = parts[len(parts)-1]
+		}
+		return vm.ToValue(&JSDocumentRef{
+			vm:     vm,
+			runner: runner,
+			Id:     docId,
+			Path:   docPath,
+		})
+	})
+	_ = dbObj.Set("collectionGroup", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			panic(vm.ToValue("collectionGroup() requires a collection ID"))
+		}
+		colId := strings.Trim(call.Arguments[0].String(), "/")
+		return vm.ToValue(&JSQueryRef{
+			vm:             vm,
+			runner:         runner,
+			collPath:       colId,
+			allDescendants: true,
 		})
 	})
 	_ = vm.Set("db", dbObj)
@@ -487,18 +671,33 @@ func RunJSScript(token, projectId, databaseId, script string) (interface{}, erro
 		return nil, fmt.Errorf("JS execution error: %v", err)
 	}
 
+	var exported interface{}
 	// If the return value is a Promise, extract its result directly
 	if promise, ok := resVal.Export().(*goja.Promise); ok {
 		if promise.State() == goja.PromiseStateFulfilled {
-			return cleanGojaExport(promise.Result().Export()), nil
+			exported = cleanGojaExport(promise.Result().Export())
 		} else if promise.State() == goja.PromiseStateRejected {
 			return nil, fmt.Errorf("Promise rejected: %v", promise.Result().Export())
 		} else {
 			return nil, fmt.Errorf("Promise is pending (synchronous REST execution failed to resolve)")
 		}
+	} else {
+		exported = cleanGojaExport(resVal.Export())
 	}
 
-	return cleanGojaExport(resVal.Export()), nil
+	if len(logs) > 0 {
+		if m, ok := exported.(map[string]interface{}); ok {
+			if _, hasLogs := m["logs"]; hasLogs {
+				return m, nil
+			}
+		}
+		return map[string]interface{}{
+			"logs":   logs,
+			"result": exported,
+		}, nil
+	}
+
+	return exported, nil
 }
 
 // Clean Goja export types to avoid structures that json.Marshal cannot handle (like functions)
@@ -509,8 +708,18 @@ func cleanGojaExport(val interface{}) interface{} {
 
 	switch v := val.(type) {
 	case *JSQuerySnapshot:
-		var docs []map[string]interface{}
+		docs := []map[string]interface{}{}
 		for _, d := range v.Docs {
+			docs = append(docs, map[string]interface{}{
+				"id":   d.Id,
+				"path": d.Ref.Path,
+				"data": d.Data(),
+			})
+		}
+		return docs
+	case []*JSDocumentSnapshot:
+		docs := []map[string]interface{}{}
+		for _, d := range v {
 			docs = append(docs, map[string]interface{}{
 				"id":   d.Id,
 				"path": d.Ref.Path,
@@ -524,6 +733,11 @@ func cleanGojaExport(val interface{}) interface{} {
 			"path": v.Ref.Path,
 			"data": v.Data(),
 		}
+	case *JSDocumentRef:
+		return map[string]interface{}{
+			"id":   v.Id,
+			"path": v.Path,
+		}
 	case map[string]interface{}:
 		res := make(map[string]interface{})
 		for k, valItem := range v {
@@ -531,7 +745,7 @@ func cleanGojaExport(val interface{}) interface{} {
 		}
 		return res
 	case []interface{}:
-		var res []interface{}
+		res := []interface{}{}
 		for _, item := range v {
 			res = append(res, cleanGojaExport(item))
 		}

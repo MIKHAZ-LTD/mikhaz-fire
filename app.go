@@ -119,6 +119,11 @@ func (a *App) AddServiceAccount(jsonContent string) (string, error) {
 	return a.credManager.AddServiceAccount(jsonContent)
 }
 
+// RemoveAccount removes an account from the active session.
+func (a *App) RemoveAccount(email string) error {
+	return a.credManager.RemoveAccount(email)
+}
+
 
 // ListProjects lists Google Cloud / Firebase projects.
 func (a *App) ListProjects(email string) ([]Project, error) {
@@ -135,25 +140,49 @@ func (a *App) ListAuthUsers(email string, projectId string, pageSize int, pageTo
 	if err != nil {
 		return nil, err
 	}
-	resp, err := ListAuthUsers(token, projectId, pageSize, pageToken)
-	if err != nil {
-		return nil, err
+
+	searchQuery := strings.ToLower(strings.TrimSpace(search))
+	if searchQuery == "" {
+		return ListAuthUsers(token, projectId, pageSize, pageToken)
 	}
 
-	// Filter in-memory if a search query is provided
-	if search != "" {
-		searchQuery := strings.ToLower(search)
-		var filteredUsers []AuthUser
+	// When searching, scan up to 5 pages of 1000 users so matches beyond the first page are found.
+	filteredUsers := []AuthUser{}
+	curToken := pageToken
+	nextToken := ""
+	const maxPages = 5
+	for page := 0; page < maxPages; page++ {
+		resp, err := ListAuthUsers(token, projectId, 1000, curToken)
+		if err != nil {
+			return nil, err
+		}
 		for _, u := range resp.Users {
-			if strings.Contains(strings.ToLower(u.Email), searchQuery) ||
+			matched := strings.Contains(strings.ToLower(u.Email), searchQuery) ||
 				strings.Contains(strings.ToLower(u.UID), searchQuery) ||
-				strings.Contains(strings.ToLower(u.DisplayName), searchQuery) {
+				strings.Contains(strings.ToLower(u.DisplayName), searchQuery)
+			if !matched {
+				for _, p := range u.Providers {
+					if strings.Contains(strings.ToLower(p), searchQuery) {
+						matched = true
+						break
+					}
+				}
+			}
+			if matched {
 				filteredUsers = append(filteredUsers, u)
 			}
 		}
-		resp.Users = filteredUsers
+		nextToken = resp.NextPageToken
+		if nextToken == "" {
+			break
+		}
+		curToken = nextToken
 	}
-	return resp, nil
+
+	return &AuthUsersResponse{
+		Users:         filteredUsers,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // CreateAuthUser creates a new Firebase Auth user.

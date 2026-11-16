@@ -205,7 +205,18 @@ func ListAuthUsers(token string, projectId string, pageSize int, pageToken strin
 // UpdateAuthUser updates a user in Firebase Auth.
 func UpdateAuthUser(token string, projectId string, req map[string]interface{}) (map[string]interface{}, error) {
 	reqUrl := fmt.Sprintf("https://identitytoolkit.googleapis.com/v1/projects/%s/accounts:update", projectId)
-	body, err := json.Marshal(req)
+	payload := make(map[string]interface{}, len(req))
+	for k, v := range req {
+		payload[k] = v
+	}
+	// Identity Toolkit accounts:update expects "disableUser" rather than "disabled"
+	if disabledVal, hasDisabled := payload["disabled"]; hasDisabled {
+		if _, hasDisableUser := payload["disableUser"]; !hasDisableUser {
+			payload["disableUser"] = disabledVal
+		}
+		delete(payload, "disabled")
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -405,8 +416,54 @@ func RunQuery(token string, projectId string, databaseId string, queryBody map[s
 	if databaseId == "" {
 		databaseId = "(default)"
 	}
-	reqUrl := fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/%s/documents:runQuery", projectId, databaseId)
-	body, err := json.Marshal(queryBody)
+
+	// Normalize queryBody via JSON roundtrip so nested structures are standard map[string]interface{} / []interface{}
+	rawBytes, err := json.Marshal(queryBody)
+	if err != nil {
+		return nil, err
+	}
+	var normalizedBody map[string]interface{}
+	if err := json.Unmarshal(rawBytes, &normalizedBody); err != nil {
+		return nil, err
+	}
+
+	parentDocPath := ""
+	if p, ok := normalizedBody["parent"].(string); ok && p != "" {
+		parentDocPath = strings.Trim(p, "/")
+		if idx := strings.Index(parentDocPath, "/documents/"); idx != -1 {
+			parentDocPath = parentDocPath[idx+len("/documents/"):]
+		}
+		delete(normalizedBody, "parent")
+	}
+
+	// Firestore REST API requires subcollection paths to place the parent document path in the URL
+	// and pass only the leaf collection ID in structuredQuery.from[].collectionId.
+	if sq, ok := normalizedBody["structuredQuery"].(map[string]interface{}); ok {
+		if fromSlice, ok := sq["from"].([]interface{}); ok {
+			for _, item := range fromSlice {
+				if fromEntry, ok := item.(map[string]interface{}); ok {
+					if colId, ok := fromEntry["collectionId"].(string); ok && strings.Contains(colId, "/") {
+						trimmed := strings.Trim(colId, "/")
+						if lastIdx := strings.LastIndex(trimmed, "/"); lastIdx != -1 {
+							if parentDocPath == "" {
+								parentDocPath = trimmed[:lastIdx]
+							}
+							fromEntry["collectionId"] = trimmed[lastIdx+1:]
+						}
+					}
+				}
+			}
+		}
+	}
+
+	var reqUrl string
+	if parentDocPath != "" {
+		reqUrl = fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/%s/documents/%s:runQuery", projectId, databaseId, parentDocPath)
+	} else {
+		reqUrl = fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/%s/documents:runQuery", projectId, databaseId)
+	}
+
+	body, err := json.Marshal(normalizedBody)
 	if err != nil {
 		return nil, err
 	}

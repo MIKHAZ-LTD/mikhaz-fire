@@ -30,14 +30,28 @@ type Account struct {
 }
 
 type CredentialManager struct {
-	mu       sync.Mutex
-	accounts map[string]*Account // keyed by Email
+	mu        sync.Mutex
+	accounts  map[string]*Account // keyed by Email
+	dismissed map[string]bool     // emails explicitly removed in this session
 }
 
 func NewCredentialManager() *CredentialManager {
 	return &CredentialManager{
-		accounts: make(map[string]*Account),
+		accounts:  make(map[string]*Account),
+		dismissed: make(map[string]bool),
 	}
+}
+
+// RemoveAccount removes an account from the active credential list.
+func (cm *CredentialManager) RemoveAccount(email string) error {
+	if email == "" {
+		return fmt.Errorf("missing email")
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	delete(cm.accounts, email)
+	cm.dismissed[email] = true
+	return nil
 }
 
 // RefreshTokenResponse is the payload returned by Google OAuth2 token endpoint.
@@ -177,9 +191,13 @@ func (cm *CredentialManager) ScanLocalCredentials() []Account {
 		cm.parseAdcConfig(adcPath, "gcloud-adc")
 	}
 
-	// Return list of discovered accounts
+	// Return list of discovered accounts (excluding dismissed ones)
 	var list []Account
-	for _, acc := range cm.accounts {
+	for email, acc := range cm.accounts {
+		if cm.dismissed[email] {
+			delete(cm.accounts, email)
+			continue
+		}
 		list = append(list, *acc)
 	}
 	return list
@@ -297,6 +315,7 @@ func (cm *CredentialManager) AddServiceAccount(jsonContent string) (string, erro
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
+	delete(cm.dismissed, key.ClientEmail)
 	acc := &Account{
 		Email:        key.ClientEmail,
 		Source:       "service_account",
@@ -359,6 +378,7 @@ func (cm *CredentialManager) ExchangeCodeForAccount(code, redirectURI, clientID 
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
+	delete(cm.dismissed, userInfo.Email)
 	acc := &Account{
 		Email:        userInfo.Email,
 		Source:       "firebase",
